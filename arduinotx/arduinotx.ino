@@ -17,7 +17,7 @@
  */
 
 #include <SPI.h>
-#include "RF24.h"
+#include <RF24.h>
 
 #define LED 6
 #define RF_CE 9

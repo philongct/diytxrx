@@ -20,7 +20,7 @@
 #define RF_CSN    6
 
 #include <SPI.h>
-#include "RF24.h"
+#include <RF24.h>
 
 #include "SoftSerial.h"
 #include "FUTABA_SBUS.h"
