@@ -1,22 +1,18 @@
-#include "FUTABA_SBUS.h"
+#include "SBUS.h"
 
-FUTABA_SBUS::FUTABA_SBUS(SoftSerial *invertedSerial){
-  port0 = invertedSerial;
-}
-
-void FUTABA_SBUS::begin(){
-	port0->begin(BAUDRATE/*,  SP_2_STOP_BIT | SP_EVEN_PARITY | SP_8_BIT_CHAR*/);
-}
-
-void FUTABA_SBUS::setChannelData(uint8_t ch, int16_t value) {
+void SBUS::setChannelData(uint8_t ch, int16_t value) {
   channelData[ch] = value;
 }
 
-int16_t FUTABA_SBUS::getChannelData(uint8_t ch) {
+int16_t SBUS::getChannelData(uint8_t ch) {
   return channelData[ch];
 }
 
-void FUTABA_SBUS::buildPacket(void) {
+uint8_t* SBUS::getPacket() {
+  return packetData;
+}
+
+void SBUS::buildPacket(void) {
   uint8_t packet_Position = 0;
   uint8_t current_Packet_Bit = 0;
   uint8_t current_Channel = 0;
@@ -48,12 +44,3 @@ void FUTABA_SBUS::buildPacket(void) {
   packetData[24] = 0x00;  //End byte
 }
 
-void FUTABA_SBUS::write() {
-  if (millis() - lastSent >= 14) { 
-    buildPacket();
-    for (uint8_t i = 0; i < 25; ++i) {
-       port0->write(packetData[i], true, true);
-    }
-    lastSent = millis();
-  }
-}
