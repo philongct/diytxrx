@@ -1,5 +1,3 @@
-//this programm will put out a PPM signal
-
 /*
  * 
  * inputs:
@@ -14,74 +12,61 @@
  * D13: SCK
  */
 
-#define SBUS_TX   2
-#define SBUS_RX   3
-#define RF_CE     5
-#define RF_CSN    6
+#define SBUS_TX         2
+#define SBUS_RX         3
+#define SBUS_BAUDRATE   100000
 
-#include <SPI.h>
-#include <RF24.h>
+#define RF_CE     4
+#define RF_CSN    7
 
+#include "rx.h"
 #include "SoftSerial.h"
-#include "FUTABA_SBUS.h"
 
-SoftSerial invertedConn(SBUS_TX, SBUS_TX, true);
-FUTABA_SBUS sbus(&invertedConn);
+// Soft serial to write data out
+SoftSerial invertedConn(SBUS_RX, SBUS_TX, true);
 
-RF24Debug radio(RF_CE, RF_CSN);
-const uint64_t pipes[2] = { 0xe7e7e7e7e7LL, 0xc2c2c2c2c2LL };
+// Radio rx
+RX rx(RF_CE, RF_CSN);
+
+// RF packet buffer
+uint8_t dataPacket[PACKET_LEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x0f,0x01,0x04,0x20,0x00,0xff,0x07,0x40,0x00,0x02,0x10,0x80,0x2c,0x64,0x21,0x0b,0x59,0x08,0x40,0x00,0x02,0x10,0x80,0x00,0x00};
+
+long lastWrite = millis();
 
 void setup(){
+  Serial.begin(115200);
   delay(3000); // For programming
-  
-  Serial.begin(57600);
-  sbus.begin();
-
-  radio.begin();
-  radio.setPALevel(RF24_PA_HIGH);
-  radio.setDataRate(RF24_250KBPS);
-  radio.setCRCLength(RF24_CRC_8);
-  radio.openWritingPipe(pipes[1]);    // note that our pipes are the same above, but that
-  radio.openReadingPipe(1, pipes[0]); // they are flipped between rx and tx sides.
-  radio.startListening();
-  
-  radio.printDetails();
+  invertedConn.begin(SBUS_BAUDRATE);
+  rx.begin();
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
-
-  if (radio.available()) {
-
-    Serial.println("--------------------------------------------------------------------------------");
-    uint8_t rx_data[32];  // we'll receive a 32 byte packet
-    
-    bool done = false;
-    while (!done) {
-      done = radio.read( &rx_data, sizeof(rx_data) );
-      printf("Got payload @ %lu...\r\n", millis());
+  if (rx.receive(&dataPacket)) {
+    Serial.println("Packet received");
+    if (dataPacket[0] == SYNC_PACKET) {
+      rx.syncResponse(10);
+      Serial.println("Responsed to sync packet");
+    } else if (dataPacket[0] == SYNC_TEST_PACKET) {
+      rx.syncTestResponse();
+      Serial.println("Responsed to sync test packet");
+    } else {
+      rx.transmitPacket(&dataPacket);
+      Serial.println("Packet responsed");
     }
-    
-    // echo it back real fast
-    radio.stopListening();
-    radio.write( &rx_data, sizeof(rx_data) );
-    Serial.println("Sent response.");
-    radio.startListening();
-
-    // do stuff with the data we got.
-    Serial.print("First Value: ");
-    Serial.println(rx_data[0]);
   }
 
-  
-  
-  static int val = 10;
-
-  for (uint8_t i = 5; i < 15; ++i) {
-    sbus.setChannelData(i, sbus.getChannelData(i) + val);
-    if(sbus.getChannelData(i) >= 2000){ val = -10; }
-    if(sbus.getChannelData(i) <= 1000){ val = 10; }
-  }
-
-  sbus.write();
+  sbusWrite(dataPacket);
 }
+
+void sbusWrite(uint8_t *data) {
+  if (millis() - lastWrite >= 14) {
+    for (uint8_t i = 0; i < 25; ++i) {
+      invertedConn.write(data[HEADER_OFFSET + i], true, true);
+//      Serial.println(data[HEADER_OFFSET + i]);
+    }
+    lastWrite = millis();
+  }
+}
+

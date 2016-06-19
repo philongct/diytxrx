@@ -441,7 +441,7 @@ size_t SoftSerial::write(uint8_t b, bool evenParity, bool stopbit2)
 
   if (inv) {
     b = ~b;
-	parity = ~parity;
+	  parity = ~parity;
   }
 
   cli();  // turn off interrupts for a clean txmit
@@ -486,7 +486,7 @@ size_t SoftSerial::write(uint8_t b, bool evenParity, bool stopbit2)
   if ( stopbit2 ) {
     tunedDelay(_tx_delay << 1);
   } else {
-	tunedDelay(_tx_delay);
+    tunedDelay(_tx_delay);
   }
   
   return 1;

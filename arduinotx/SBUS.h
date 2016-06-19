@@ -19,18 +19,49 @@ class SBUS {
   public:
     uint8_t failsafe_status;
 
-    void setChannelData(uint8_t ch, int16_t value);
-    int16_t getChannelData(uint8_t ch);
+    void setChannelData(uint8_t ch, int16_t value) {
+      channelData[ch] = value;
+    }
     
-    void buildPacket();
-    uint8_t* getPacket();
+    int16_t getChannelData(uint8_t ch) {
+      return channelData[ch];
+    }
+    
+    void buildPacket(uint8_t* packetData, uint8_t offset) {
+      uint8_t packet_Position = 0;
+      uint8_t current_Packet_Bit = 0;
+      uint8_t current_Channel = 0;
+      uint8_t current_Channel_Bit = 0;
+      
+      for(packet_Position = 0;packet_Position < SBUS_PACKET_LEN; packet_Position++) packetData[packet_Position + offset] = 0x00;  //Zero out packet data
+      
+      current_Packet_Bit = 0;
+      packet_Position = 0;
+      packetData[packet_Position + offset] = 0x0F;  //Start Byte
+      packet_Position++;
+      
+      for(current_Channel = 0; current_Channel < 16; current_Channel++) {
+        for(current_Channel_Bit = 0; current_Channel_Bit < 11; current_Channel_Bit++) {
+          if(current_Packet_Bit > 7) {
+            current_Packet_Bit = 0;  //If we just set bit 7 in a previous step, reset the packet bit to 0 and
+            packet_Position++;       //Move to the next packet byte
+          }
+    
+          //Downshift the channel data bit, then upshift it to set the packet data byte
+          packetData[packet_Position + offset] |= (((channelData[current_Channel]>>current_Channel_Bit) & 0x01)<<current_Packet_Bit);
+          current_Packet_Bit++;
+        }
+      }
+      if(channelData[16] > 1023) packetData[23 + offset] |= (1<<0);  //Any number above 1023 will set the digital servo bit
+      if(channelData[17] > 1023) packetData[23 + offset] |= (1<<1);
+      if(failsafe_status == SBUS_SIGNAL_LOST) packetData[23 + offset] |= (1<<2);
+      if(failsafe_status == SBUS_SIGNAL_FAILSAFE) packetData[23 + offset] |= (1<<3);
+      packetData[24 + offset] = 0x00;  //End byte
+    }
+    
   private:
-    uint8_t packetData[25] = {
-        0x0f,0x01,0x04,0x20,0x00,0xff,0x07,0x40,0x00,0x02,0x10,0x80,0x2c,0x64,0x21,0x0b,0x59,0x08,0x40,0x00,0x02,0x10,0x80,0x00,0x00};
     int16_t channelData[18] = {
         1700,1700,1700,1700,1000,1500,1300,1400,1600,1700,1800,1100,1200,1800,1900,0,0,0};
-
-    long lastSent = millis();
 };
 
 #endif
