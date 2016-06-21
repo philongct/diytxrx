@@ -25,7 +25,9 @@ class RX {
       radio.openWritingPipe(pipes[1]);    // note that our pipes are the same above, but that
       radio.openReadingPipe(1, pipes[0]); // they are flipped between rx and tx sides.
       radio.startListening();
+#ifdef __DEBUG__
       radio.printDetails();
+#endif
     }
 
     bool receive(void* buff) {
@@ -62,7 +64,11 @@ class RX {
     
   private:
     const uint64_t pipes[2] = { 0xe7e7e7e7e7LL, 0xc2c2c2c2c2LL };
+#ifdef __DEBUG__
     RF24Debug radio;
+#else
+    RF24 radio;
+#endif
 };
 
 #endif
