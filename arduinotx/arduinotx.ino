@@ -41,6 +41,10 @@ TX tx(RF_CE_PIN, RF_CSN_PIN);
 // SBUS data builder
 SBUS sbus;
 
+volatile uint16_t lostCount = 0;
+
+long lastSend = millis();
+
 void setup(){
   Serial.begin(115200);
 
@@ -51,26 +55,32 @@ void setup(){
 
 // the loop routine runs over and over again forever:
 void loop() {
+  bool changed = false;
   if (input.readAnalog()) {
     sbus.setChannelData(0, input.analogVals[0]);
     sbus.setChannelData(1, input.analogVals[1]);
     sbus.setChannelData(2, input.analogVals[2]);
     sbus.setChannelData(3, input.analogVals[3]);
+
+    changed = true;
   }
   
   sbus.buildPacket(dataPacket, HEADER_OFFSET);
-
-  if (tx.transmitPacket(&dataPacket)) {
-    if (tx.receiveUntilTimeout(&dataPacket)) {
-      Serial.println("Data 0: ");
-      for (uint8_t i = 0; i < 25; ++i) {
-        Serial.println(dataPacket[HEADER_OFFSET + i]);
+  if (millis() - lastSend >= 1000 || changed) {
+    if (tx.transmitPacket(&dataPacket)) {
+      if (tx.receiveUntilTimeout(&dataPacket, 250)) {
+        lostCount = 0;
+        Serial.println("Data 0: ");
+        for (uint8_t i = 0; i < 25; ++i) {
+          Serial.println(dataPacket[HEADER_OFFSET + i]);
+        }
+      } else {
+        ++lostCount;
       }
+    } else {
+      tx.sync();
     }
-  } else {
-    tx.sync();
   }
   
-  delay(1000); // wait a second and do it again.
 //  tx.testSignal();
 }
