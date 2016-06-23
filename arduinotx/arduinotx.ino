@@ -16,24 +16,20 @@
  * 
  */
 
-//#include <SPI.h>
-
+#include "config.h"
 
 #include "SBUS.h"
 #include "tx.h"
-#include "output.h"
+#include "notifier.h"
 #include "input.h"
-
-#define LED           6
-
-#define RF_CE_PIN     9
-#define RF_CSN_PIN    10
 
 // RF packet
 uint8_t dataPacket[PACKET_LEN];
 
+Notifier notifier;
+
 // Input
-Input input;
+Input input(&notifier);
 
 // RF Transmitter
 TX tx(RF_CE_PIN, RF_CSN_PIN);
@@ -41,20 +37,41 @@ TX tx(RF_CE_PIN, RF_CSN_PIN);
 // SBUS data builder
 SBUS sbus;
 
-volatile uint16_t lostCount = 0;
+// always lost until RF is connected
+volatile uint16_t lostCount = 10;
 
 long lastSend = millis();
 
 void setup(){
   Serial.begin(115200);
-
-  pinMode(LED, OUTPUT);
-
+  notifier.begin();
   tx.begin();
+  Serial.println("Begin");
+//  tx.sync();
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
+  notifier.loop();
+
+//  outputDebug();
+  runLoop();
+}
+
+//void outputDebug() {
+//  if (Serial.available() > 0) {
+//    int inChar = Serial.read();
+//    Serial.println("Read: " + String(inChar));
+//    if (inChar == 'a') {
+//      notifier.warnRf();
+//    } else if (inChar == 'b'){
+//      notifier.showFlightMode();
+//    } else {
+//    }
+//  }
+//}
+
+void runLoop() {
   bool changed = false;
   if (input.readAnalog()) {
     sbus.setChannelData(0, input.analogVals[0]);
@@ -67,12 +84,14 @@ void loop() {
   
   sbus.buildPacket(dataPacket, HEADER_OFFSET);
   if (millis() - lastSend >= 1000 || changed) {
+    tx.buildDataPacket(dataPacket);
     if (tx.transmitPacket(&dataPacket)) {
-      if (tx.receiveUntilTimeout(&dataPacket, 250)) {
+      lastSend = millis();
+      if (tx.receiveUntilTimeout(&dataPacket)) {
         lostCount = 0;
-        Serial.println("Data 0: ");
+        Serial.println("\nData 0: ");
         for (uint8_t i = 0; i < 25; ++i) {
-          Serial.println(dataPacket[HEADER_OFFSET + i]);
+          Serial.print(dataPacket[HEADER_OFFSET + i]);Serial.print(" ");
         }
       } else {
         ++lostCount;
@@ -81,6 +100,12 @@ void loop() {
       tx.sync();
     }
   }
-  
-//  tx.testSignal();
+
+  if (lostCount > 4 ) {
+    notifier.warnRf();
+  } else {
+    notifier.showFlightMode();
+  }
 }
+
+

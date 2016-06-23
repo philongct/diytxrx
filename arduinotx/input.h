@@ -14,7 +14,9 @@ class Input {
     uint16_t analogVals[AXIS_NUM];
     uint16_t aux[AUX_NUM];
 
-//    void begin();
+    Input(Notifier* notifier) {
+      this->notifier = notifier;
+    }
   
     bool readAnalog() {
       bool change = false;
@@ -35,6 +37,8 @@ class Input {
 
     
   private:
+    Notifier* notifier;
+    
     uint8_t currentAux = 0;
 
     boolean isChange(int cur, int last) {

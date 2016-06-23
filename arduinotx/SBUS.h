@@ -8,9 +8,6 @@
 #define SBUS_SIGNAL_OK          0x00
 #define SBUS_SIGNAL_LOST        0x01
 #define SBUS_SIGNAL_FAILSAFE    0x03
-#define RXBUFFER 64
-#define TXBUFFER 64
-#define PORTNUMBER 1
 
 #define SBUS_BAUDRATE     99000
 #define SBUS_PACKET_LEN   25

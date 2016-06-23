@@ -1,15 +1,19 @@
 #ifndef __OUTPUT_h__
 #define __OUTPUT_h__
 
-#define BUZZ_PIN        8
-#define RF_STATUS_PIN   7
-#define FLIGHT_PIN      6
+#include "LED.h"
 
-class Output {
+class Notifier {
   public:
 
+    Notifier() : led(FLIGHT_PIN) { }
+
     void begin() {
-      
+      showFlightMode();
+    }
+
+    void loop() {
+      led.loop();
     }
 
     // Battery is at low level
@@ -22,12 +26,12 @@ class Output {
     
     }
 
-    void warnWeakRf() {
-      
+    void warnRf() {
+      led.flash(10, 10);
     }
 
     void showFlightMode() {
-      
+      led.flash(250, 0);
     }
 
     void showAuxSelection() {
@@ -35,8 +39,7 @@ class Output {
     }
 
   private:
-    uint8_t led_state = 0;  // 0: showing flight mode; 1: showing radio rf
-    uint8_t buzzState = 0;  // 0: showing aux selection; 1: showing flight mode; 2: warn battery; 3: alert battery
+    LED led;
 
     long led_last_flash = 0;
     long buzzer_last_tone = 0;
