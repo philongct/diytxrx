@@ -28,10 +28,42 @@ class TX {
       init(DEFAULT_CH);
     }
 
+    void doTestSignal(uint8_t* signalsBuffer) {
+      uint8_t currentCh = radio.getChannel();
+      uint8_t bestCh[2] = {currentCh, 0};
+
+      memset(signalsBuffer, 0, AVAILABLE_CH);
+      
+      // Scan all channels num_reps times
+      uint8_t num_reps = 100;
+      while (num_reps--) {
+        uint8_t num_channel = AVAILABLE_CH;
+        while (num_channel--) {
+          // Select this channel
+          radio.stopListening();
+          radio.setChannel(num_channel);
+    
+          // Listen for a little
+          radio.startListening();
+          delayMicroseconds(128);
+    
+          // Did we get a carrier?
+          if ( radio.testRPD() )
+            ++signalsBuffer[num_channel];
+        }
+      }
+      // revert back
+      radio.setChannel(currentCh);
+    }
+
     bool sync() {
       uint8_t packet[PACKET_LEN];
 
       if (!scanTarget()) return synced;
+
+      // Radio noise when switching to better channel
+      synced = true;
+      return true;
 
       buildSyncPacket(packet);
       transmitPacket(packet, true);
@@ -117,7 +149,7 @@ class TX {
 
     void init(uint8_t ch) {
       radio.begin();
-      radio.setPALevel(RF24_PA_LOW);
+      radio.setPALevel(RF24_PA_MAX);
       radio.setDataRate(RF24_250KBPS);
       radio.setCRCLength(RF24_CRC_8);
       radio.setAutoAck(false);

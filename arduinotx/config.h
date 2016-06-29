@@ -3,7 +3,6 @@
 
 
 #define BUZZ_PIN        8
-#define RF_STATUS_PIN   7
 #define FLIGHT_PIN      6   // 6
 
 #define RF_CE_PIN       9

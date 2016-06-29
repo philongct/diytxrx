@@ -31,7 +31,7 @@ class Notifier {
     }
 
     void showFlightMode() {
-      led.flash(250, 0);
+      led.flash(100, 10);
     }
 
     void showAuxSelection() {

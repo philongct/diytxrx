@@ -54,9 +54,21 @@ void setup(){
 void loop() {
   notifier.loop();
 
+//  runTest();
+
 //  outputDebug();
   runLoop();
 }
+
+//void runTest() {
+//  uint8_t buff[AVAILABLE_CH];
+//  tx.doTestSignal(buff);
+//  for (uint8_t i = 0; i < AVAILABLE_CH; ++i) {
+//    Serial.print(min(0xf,buff[i]&0xf), HEX);
+//  }
+//  Serial.println();
+////  delay(2000);
+//}
 
 //void outputDebug() {
 //  if (Serial.available() > 0) {
@@ -101,7 +113,7 @@ void runLoop() {
     }
   }
 
-  if (lostCount > 4 ) {
+  if (lostCount > 3 ) {
     notifier.warnRf();
   } else {
     notifier.showFlightMode();
