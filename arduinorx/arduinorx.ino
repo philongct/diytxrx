@@ -30,7 +30,7 @@
 #define NO_SYNCED       254
 
 // Lost if not receiving any signal after 1s
-#define RADIO_LOST_TIMEOUT  10000
+#define RADIO_LOST_TIMEOUT  5000
 
 #include "rx.h"
 #include "SoftSerial.h"
