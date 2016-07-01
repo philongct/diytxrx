@@ -84,12 +84,19 @@ void loop() {
 //}
 
 void runLoop() {
-  bool changed = false;
-  if (input.readAnalog()) {
+  bool changed = input.readAnalog();
+  if (changed) {
     sbus.setChannelData(0, input.analogVals[0]);
     sbus.setChannelData(1, input.analogVals[1]);
     sbus.setChannelData(2, input.analogVals[2]);
     sbus.setChannelData(3, input.analogVals[3]);
+  }
+
+  if (input.readDigital()) {
+    sbus.setChannelData(4, input.currentFlightMode);
+    sbus.setChannelData(6, input.aux[0]);
+    sbus.setChannelData(7, input.aux[1]);
+    sbus.setChannelData(8, input.aux[2]);
 
     changed = true;
   }
@@ -99,7 +106,7 @@ void runLoop() {
     tx.buildDataPacket(dataPacket);
     if (tx.transmitPacket(&dataPacket)) {
       lastSend = millis();
-      if (tx.receiveUntilTimeout(&dataPacket)) {
+      if (tx.receiveUntilTimeout(&dataPacket, 50)) {
         lostCount = 0;
         Serial.println("\nData 0: ");
         for (uint8_t i = 0; i < 25; ++i) {
@@ -116,7 +123,7 @@ void runLoop() {
   if (lostCount > 3 ) {
     notifier.warnRf();
   } else {
-    notifier.showFlightMode();
+    notifier.showOK();
   }
 }
 

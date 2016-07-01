@@ -9,7 +9,7 @@ class Notifier {
     Notifier() : led(FLIGHT_PIN) { }
 
     void begin() {
-      showFlightMode();
+//      showFlightMode();
     }
 
     void loop() {
@@ -27,15 +27,15 @@ class Notifier {
     }
 
     void warnRf() {
-      led.flash(10, 10);
+      led.blink(10, 10);
     }
 
-    void showFlightMode() {
-      led.flash(100, 10);
+    void showOK() {
+      led.blink(200, 5);
     }
 
-    void showAuxSelection() {
-      
+    void showAuxSelection(uint8_t auxNumber) {
+      led.flash(auxNumber);
     }
 
   private:
