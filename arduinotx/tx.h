@@ -149,7 +149,7 @@ class TX {
 
     void init(uint8_t ch) {
       radio.begin();
-      radio.setPALevel(RF24_PA_MAX);
+      radio.setPALevel(RF24_PA_HIGH);
       radio.setDataRate(RF24_250KBPS);
       radio.setCRCLength(RF24_CRC_8);
       radio.setAutoAck(false);

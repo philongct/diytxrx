@@ -48,7 +48,7 @@ class Input {
       bool change = false;
 
       // Read AUX
-      if (readPin(AUX_SEL_PIN, 500)) {
+      if (readPin(AUX_SEL_PIN, 254)) {
         currentAux = (currentAux + 1) % AUX_NUM;
         notifier->showAuxSelection(currentAux + 1);
       }
@@ -61,7 +61,7 @@ class Input {
         change = true;
       }
 
-      if (readPin(FLIGH_MODE_PIN, 500)) {
+      if (readPin(FLIGH_MODE_PIN, 254)) {
         currentFlightMode = (currentFlightMode + 1) % 3;
         change = true;
       }

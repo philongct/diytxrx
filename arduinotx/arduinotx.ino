@@ -102,13 +102,13 @@ void runLoop() {
   }
   
   sbus.buildPacket(dataPacket, HEADER_OFFSET);
-  if (millis() - lastSend >= 1000 || changed) {
+  if (millis() - lastSend >= 500 || changed) {
     tx.buildDataPacket(dataPacket);
     if (tx.transmitPacket(&dataPacket)) {
       lastSend = millis();
       if (tx.receiveUntilTimeout(&dataPacket, 50)) {
         lostCount = 0;
-        Serial.println("\nData 0: ");
+        Serial.println("\nData: ");
         for (uint8_t i = 0; i < 25; ++i) {
           Serial.print(dataPacket[HEADER_OFFSET + i]);Serial.print(" ");
         }
