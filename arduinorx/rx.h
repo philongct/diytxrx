@@ -14,7 +14,8 @@
 #define SYNC_TEST_PACKET  0x0A
 #define SYNC_OK           0x0F
 
-#define STAMP             0xEC
+#define STAMP             0xEC    // Stamp to mark valid packets (prevent jam packets due to RF error)
+                                  // When building packets, always assign packet[1] = STAMP
 #define PROBE_PACKET      0xFF
 #define DATA_PACKET       0xF0
 

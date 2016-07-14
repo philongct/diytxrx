@@ -30,10 +30,13 @@
 #define NO_SYNCED       254
 
 // Lost if not receiving any signal after 1s
-#define RADIO_LOST_TIMEOUT  5000
+#define RADIO_LOST_TIMEOUT  1500
 
 #include "rx.h"
 #include "SoftSerial.h"
+#include "input.h"
+
+Input input;
 
 // Soft serial to write data out
 SoftSerial invertedConn(SBUS_RX, SBUS_TX, true);
@@ -55,6 +58,7 @@ void setup(){
   delay(500);
   invertedConn.begin(SBUS_BAUDRATE);
   rx.begin();
+  input.begin();
 }
 
 bool validatePacket(uint8_t *packet) {
@@ -67,12 +71,11 @@ void loop() {
   dataPacket[0] = 0x00;
   dataPacket[1] = 0x00;
 
-  // ok variable to verify content
-  // in case of noise
-  bool ok = false;
   if (rx.receive(&dataPacket)) {
-    Serial.print("Packet received ");Serial.println(dataPacket[0]);
-    ok = validatePacket(dataPacket);
+    Serial.print("Packet received ");Serial.print(dataPacket[0]);Serial.print(" ");Serial.println(dataPacket[1]);
+    if (validatePacket(dataPacket)) {
+      lastReceived = millis();
+    }
     
     if (dataPacket[0] == SYNC_PACKET) {
       if (syncedCh > AVAILABLE_CH || dataPacket[HEADER_OFFSET] == SYNC_PACKET)
@@ -85,21 +88,28 @@ void loop() {
       if ( syncedCh < AVAILABLE_CH) {
         rx.setWorkingCh(syncedCh);
       }
+    } else if (dataPacket[0] == DATA_PACKET) {
+      // copy sbus data in data packet
+      memcpy(sbusPacket, &dataPacket[HEADER_OFFSET], SBUS_DATA_LEN);
+//    sbusPrint(sbusPacket);
+
+      Serial.println("Responsed to data packet");
+      static uint8_t resPacket[8];
+      buildResponsePacket(resPacket);
+      rx.transmitPacket(&resPacket);
     } else {
+	  if (syncedCh == NO_SYNCED) {
+	    syncedCh = AVAILABLE_CH + 1;
+	  }
+      Serial.println("Responsed unknown packet");
       rx.transmitPacket(&dataPacket);
     }
   }
 
-  // copy sbus data in data packet
-  if (dataPacket[0] == DATA_PACKET) {
-    memcpy(sbusPacket, &dataPacket[HEADER_OFFSET], SBUS_DATA_LEN);
-//    sbusPrint(sbusPacket);
-  }
-
-  if (ok) lastReceived = millis();
   if (syncedCh != NO_SYNCED && millis() - lastReceived > RADIO_LOST_TIMEOUT) {
-//      Serial.println("Signal lost");
-      sbusLostSignal(sbusPacket);
+      Serial.println("Signal lost");
+      if (input.getfailSafeEnabled())
+        sbusLostSignal(sbusPacket);
     }
   
   sbusWrite(sbusPacket);
@@ -107,6 +117,17 @@ void loop() {
 
 void sbusLostSignal(uint8_t *sbusPacket) {
   sbusPacket[23] |= (1<<2);
+}
+
+void buildResponsePacket(uint8_t *buff) {
+  buff[0] = DATA_PACKET;
+  buff[1] = STAMP;
+  buff[2] = input.getfailSafeEnabled();
+  buff[3] = 0;// channel number
+  buff[4] = 0;// channel rssi
+  for (uint8_t i = 5; i < 8; ++i) {
+    buff[i] = input.getCellVoltage(i-4);
+  }
 }
 
 //void sbusPrint(uint8_t *sbusPacket) {
