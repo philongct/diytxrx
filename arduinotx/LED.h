@@ -1,6 +1,8 @@
 #ifndef __LED_h__
 #define __LED_h__
 
+#include "logger.h"
+
 class LED {
   public:
     LED(uint8_t pinNumber) {
@@ -30,11 +32,11 @@ class LED {
         if ( state == HIGH && millis() - lastUpdate > onPeriod * 10 ) {
           state = LOW;
           lastUpdate = millis();
-//          Serial.println("LED OFF");
+          printlog(4, "LED OFF");
         } else if ( state ==  LOW && millis() - lastUpdate > offPeriod * 10) {
           state = HIGH;
           lastUpdate = millis();
-//          Serial.println("LED ON");
+          printlog(4, "LED ON");
         }
       }
 

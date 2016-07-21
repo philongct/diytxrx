@@ -17,6 +17,7 @@ class SBUS {
     uint8_t failsafe_status;
 
     void setChannelData(uint8_t ch, int16_t value) {
+      if (value < 0) value = 0;
       channelData[ch] = value;
     }
     

@@ -9,7 +9,8 @@ class Notifier {
     Notifier() : led(FLIGHT_PIN) { }
 
     void begin() {
-//      showFlightMode();
+      // starting up
+      led.blink(7, 7);
     }
 
     void loop() {
@@ -26,8 +27,11 @@ class Notifier {
     
     }
 
-    void warnRf() {
-      led.blink(10, 10);
+    void warnRf(uint8_t mode) {
+      if (mode == 0)         // rssi low
+        led.blink(10, 10);
+      else if (mode == 1)    // Package lost
+        led.blink(6, 6);
     }
 
     void showOK() {

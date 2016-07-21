@@ -3,6 +3,8 @@
 
 #include <RF24.h>
 
+#include "logger.h"
+
 #define AVAILABLE_CH      124
 #define DEFAULT_CH        104
 
@@ -72,7 +74,7 @@ class TX {
       if (receiveUntilTimeout(&packet, 15000)) {
         if (packet[0] == SYNC_OK) {
           newCh = packet[1];
-          Serial.print("SYNC OK, channel is: ");Serial.println(newCh);
+          printlog(4, "SYNC OK, channel is: %d", newCh);
         }
       }
 
@@ -82,7 +84,7 @@ class TX {
         transmitPacket(packet, true);
 
         // Set new channel. TODO: do sync test again?
-        Serial.println("set new channel");
+        printlog(4, "set new channel");
         setWorkingCh(newCh);
         synced = true;
       }
@@ -97,7 +99,7 @@ class TX {
 
     bool transmitPacket(void *packet, boolean force=false) {
       if (force || synced) {
-        Serial.print("Sending on channel ");Serial.println(radio.getChannel());
+        printlog(4, "Sending on channel: %d", radio.getChannel());
         // transmit the data
         radio.stopListening();
         radio.write( packet, PACKET_LEN );
@@ -120,10 +122,9 @@ class TX {
       }
 
       if (timeout){
-          Serial.println("Failed, response timed out.");
+          printlog(4, "Failed, response timed out.");
       } else {
-        Serial.print("Got response, round trip delay: ");
-        Serial.println(millis() - started_waiting_at);
+        printlog(4, "Got response, round trip delay: %d", millis() - started_waiting_at);
       }
 
       return !timeout;
@@ -170,9 +171,11 @@ class TX {
         transmitPacket(packetBuffer, true);
         if (receiveUntilTimeout(&packetBuffer)) {
           if (packetBuffer[0] == PROBE_PACKET) {
+            printlog(1, "Probed channel %d OK", i);
             return true;
           }
         }
+        printlog(1, "Probed channel %d failed", i);
       }
 
       return false;

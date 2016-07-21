@@ -22,10 +22,16 @@
 #include "tx.h"
 #include "notifier.h"
 #include "input.h"
+#include "logger.h"
+#include "serialcommand.h"
 
 // RF packet
 uint8_t dataPacket[PACKET_LEN];
 
+//// Read commands from serial
+//SerialCommand serialCommand;
+
+// Notifier system
 Notifier notifier;
 
 // Input
@@ -43,10 +49,19 @@ volatile uint16_t lostCount = 10;
 long lastSend = millis();
 
 void setup(){
-  Serial.begin(115200);
+  printf_begin();
+  printlog(1, "Initiallizing...");
+  
   notifier.begin();
   tx.begin();
-  Serial.println("Begin");
+  GLOBAL_CFG.load();
+
+  if (input.calibrateGimbalMidPoint(&GLOBAL_CFG)) {
+    GLOBAL_CFG.save();
+  }
+  
+  printlog(1, "Starting now");
+  GLOBAL_CFG.show(1);
 //  tx.sync();
 }
 
@@ -54,43 +69,29 @@ void setup(){
 void loop() {
   notifier.loop();
 
-//  runTest();
-
-//  outputDebug();
   runLoop();
 }
 
-//void runTest() {
-//  uint8_t buff[AVAILABLE_CH];
-//  tx.doTestSignal(buff);
-//  for (uint8_t i = 0; i < AVAILABLE_CH; ++i) {
-//    Serial.print(min(0xf,buff[i]&0xf), HEX);
-//  }
-//  Serial.println();
-////  delay(2000);
-//}
+int16_t remap(uint16_t input) {
+  int16_t val = map(input, 0, 1023, 1000, 2000);
+  if (GLOBAL_CFG.midPointCorrection && val < 1503 && val > 1497) val = 1500;
 
-//void outputDebug() {
-//  if (Serial.available() > 0) {
-//    int inChar = Serial.read();
-//    Serial.println("Read: " + String(inChar));
-//    if (inChar == 'a') {
-//      notifier.warnRf();
-//    } else if (inChar == 'b'){
-//      notifier.showFlightMode();
-//    } else {
-//    }
-//  }
-//}
+  return val;
+}
 
 void runLoop() {
   bool changed = input.readAnalog();
   if (changed) {
-    sbus.setChannelData(0, input.analogVals[0]);
-    sbus.setChannelData(1, input.analogVals[1]);
-    sbus.setChannelData(2, input.analogVals[2]);
-    sbus.setChannelData(3, input.analogVals[3]);
+    sbus.setChannelData(0, map(input.analogVals[0], 0, 1023, 1000, 2000));
+    sbus.setChannelData(1, remap(input.analogVals[1] - GLOBAL_CFG.gimbalMidPointsDelta[0]));
+    sbus.setChannelData(2, remap(input.analogVals[2] - GLOBAL_CFG.gimbalMidPointsDelta[1]));
+    sbus.setChannelData(3, remap(input.analogVals[3] - GLOBAL_CFG.gimbalMidPointsDelta[2]));
+
+//    // TODO: remove or configured whether print or not
+//    printlog(2, ">>gas:%d,yaw:%d,roll:%d,pitch:%d", sbus.getChannelData(0), sbus.getChannelData(1), sbus.getChannelData(2), sbus.getChannelData(3));
   }
+
+//  return; // Print analog only
 
   if (input.readDigital()) {
     sbus.setChannelData(4, input.currentFlightMode);
@@ -100,7 +101,7 @@ void runLoop() {
 
     changed = true;
   }
-  
+
   sbus.buildPacket(dataPacket, HEADER_OFFSET);
   if (millis() - lastSend >= 500 || changed) {
     tx.buildDataPacket(dataPacket);
@@ -108,9 +109,9 @@ void runLoop() {
       lastSend = millis();
       if (tx.receiveUntilTimeout(&dataPacket, 50)) {
         lostCount = 0;
-        Serial.println("\nData: ");
+        printlog(3, "Data: ");
         for (uint8_t i = 0; i < 25; ++i) {
-          Serial.print(dataPacket[HEADER_OFFSET + i]);Serial.print(" ");
+          printlog(3, "%d", dataPacket[HEADER_OFFSET + i]);
         }
       } else {
         ++lostCount;
@@ -121,7 +122,7 @@ void runLoop() {
   }
 
   if (lostCount > 3 ) {
-    notifier.warnRf();
+    notifier.warnRf(1);
   } else {
     notifier.showOK();
   }

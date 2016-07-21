@@ -30,6 +30,31 @@ class Input {
       pinMode(AUX_DOWN_PIN, INPUT);
       digitalWrite(AUX_DOWN_PIN, HIGH);
     }
+
+    bool calibrateGimbalMidPoint(Config *GLOBAL_CFG) {
+      readAnalog();
+      // Check if all controls are in middle position.
+      // If they are then perform calibration
+      uint8_t calibrate = 0;
+      for (uint8_t i = 0; i < AXIS_NUM; ++i) {
+        // 40% - 60% estimation
+        if (analogVals[i] > 408 && analogVals[i] < 613)
+          ++calibrate;
+      }
+
+      if (calibrate == AXIS_NUM) {
+        readAnalog();
+        printlog(1, "Calibrating gimbal midpoint...");
+        // Do calibration. Ignore throttle (analogVals[0])
+        for (uint8_t i = 1; i < AXIS_NUM; ++i) {
+          GLOBAL_CFG->gimbalMidPointsDelta[i - 1] = analogVals[i] - 512;
+          printlog(1, "%d: %d diff %d", i, analogVals[i], GLOBAL_CFG->gimbalMidPointsDelta[i - 1]);
+        }
+        printlog(1, "Done");
+      }
+
+      return calibrate == AXIS_NUM;
+    }
   
     bool readAnalog() {
       bool change = false;
