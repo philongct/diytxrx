@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include "SBUS.h"
+//#include "protocol.h"
 #include "tx.h"
 #include "notifier.h"
 #include "input.h"
@@ -73,8 +74,9 @@ void loop() {
 }
 
 int16_t remap(uint16_t input) {
+  if (GLOBAL_CFG.midPointCorrection && input < 514 && input > 510) input = 512;
   int16_t val = map(input, 0, 1023, 1000, 2000);
-  if (GLOBAL_CFG.midPointCorrection && val < 1503 && val > 1497) val = 1500;
+  
 
   return val;
 }
