@@ -14,8 +14,38 @@
 #define BUZZ_PIN        8
 #define FLIGHT_PIN      6   // 6
 
-#define RF_CE_PIN       9
-#define RF_CSN_PIN      10
+//*******************
+//***   Pinouts   ***
+//*******************
+#define SDI_pin     11           //SDI/MOSI-D11
+#define SDO_pin     12           //SDO/MISO-D12
+#define SCLK_pin    13           //SCK-D13
+// MACROS
+#define  SCK_on   digitalWrite(SCLK_pin, HIGH)
+#define  SCK_off  digitalWrite(SCLK_pin, LOW)
+//
+#define  SDI_on   digitalWrite(SDI_pin, HIGH)
+#define  SDI_off  digitalWrite(SDI_pin, LOW)
+//
+#define SDO_1   digitalRead(SDO_pin) == 1
+#define SDO_0   digitalRead(SDO_pin) == 0
+//
+#define SDI_1   digitalRead(SDI_pin) == 1
+#define SDI_0   digitalRead(SDI_pin) == 0
+//
+#define SDI_SET_INPUT   pinMode(SDI_pin, INPUT)
+#define SDI_SET_OUTPUT  pinMode(SDI_pin, OUTPUT)
+//
+#ifdef A7105_INSTALLED
+#define  CS_on    digitalWrite(A7105_INSTALLED, HIGH)
+#define  CS_off   digitalWrite(A7105_INSTALLED, LOW)
+#endif
+//
+#ifdef CC2500_INSTALLED
+#define CC25_CSN_on   digitalWrite(CC2500_INSTALLED, HIGH)
+#define CC25_CSN_off  digitalWrite(CC2500_INSTALLED, LOW)
+#endif
+//
 
 #define CONFIGID        235
 

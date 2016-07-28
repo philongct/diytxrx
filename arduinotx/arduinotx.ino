@@ -8,7 +8,7 @@
  * D8: Buzzer
  * 
  * SPI pins:
- * D9: CE
+ * D9: RF24_CE/CSN2
  * D10: CSN
  * D11: MOSI
  * D12: MISO
@@ -16,18 +16,15 @@
  * 
  */
 
+#include "module_config.h"
 #include "config.h"
 
 #include "SBUS.h"
-//#include "protocol.h"
-#include "tx.h"
+#include "protocol.h"
 #include "notifier.h"
 #include "input.h"
 #include "logger.h"
 #include "serialcommand.h"
-
-// RF packet
-uint8_t dataPacket[PACKET_LEN];
 
 //// Read commands from serial
 //SerialCommand serialCommand;
@@ -38,23 +35,17 @@ Notifier notifier;
 // Input
 Input input(&notifier);
 
-// RF Transmitter
-TX tx(RF_CE_PIN, RF_CSN_PIN);
-
 // SBUS data builder
 SBUS sbus;
 
-// always lost until RF is connected
-volatile uint16_t lostCount = 10;
-
-long lastSend = millis();
+// global buffer to write packet data
+static uint8_t packet[40];
 
 void setup(){
   printf_begin();
   printlog(1, "Initiallizing...");
   
   notifier.begin();
-  tx.begin();
   GLOBAL_CFG.load();
 
   if (input.calibrateGimbalMidPoint(&GLOBAL_CFG)) {
@@ -63,7 +54,6 @@ void setup(){
   
   printlog(1, "Starting now");
   GLOBAL_CFG.show(1);
-//  tx.sync();
 }
 
 // the loop routine runs over and over again forever:
@@ -104,30 +94,8 @@ void runLoop() {
     changed = true;
   }
 
-  sbus.buildPacket(dataPacket, HEADER_OFFSET);
-  if (millis() - lastSend >= 500 || changed) {
-    tx.buildDataPacket(dataPacket);
-    if (tx.transmitPacket(&dataPacket)) {
-      lastSend = millis();
-      if (tx.receiveUntilTimeout(&dataPacket, 50)) {
-        lostCount = 0;
-        printlog(3, "Data: ");
-        for (uint8_t i = 0; i < 25; ++i) {
-          printlog(3, "%d", dataPacket[HEADER_OFFSET + i]);
-        }
-      } else {
-        ++lostCount;
-      }
-    } else {
-      tx.sync();
-    }
-  }
-
-  if (lostCount > 3 ) {
-    notifier.warnRf(1);
-  } else {
-    notifier.showOK();
-  }
+  // TODO: build packet if needed in protocol
+//  sbus.buildPacket(dataPacket, HEADER_OFFSET);
 }
 
 
