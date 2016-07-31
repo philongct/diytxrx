@@ -19,12 +19,13 @@
 #include "module_config.h"
 #include "config.h"
 
-#include "SBUS.h"
 #include "protocol.h"
 #include "notifier.h"
 #include "input.h"
 #include "logger.h"
 #include "serialcommand.h"
+
+#include "twowaysync_protocol.h"
 
 //// Read commands from serial
 //SerialCommand serialCommand;
@@ -35,11 +36,7 @@ Notifier notifier;
 // Input
 Input input(&notifier);
 
-// SBUS data builder
-SBUS sbus;
-
-// global buffer to write packet data
-static uint8_t packet[40];
+TwoWaySyncProtocol cur_protocol;
 
 void setup(){
   printf_begin();
@@ -54,6 +51,8 @@ void setup(){
   
   printlog(1, "Starting now");
   GLOBAL_CFG.show(1);
+
+  cur_protocol.init();
 }
 
 // the loop routine runs over and over again forever:
@@ -74,10 +73,10 @@ int16_t remap(uint16_t input) {
 void runLoop() {
   bool changed = input.readAnalog();
   if (changed) {
-    sbus.setChannelData(0, map(input.analogVals[0], 0, 1023, 1000, 2000));
-    sbus.setChannelData(1, remap(input.analogVals[1] - GLOBAL_CFG.gimbalMidPointsDelta[0]));
-    sbus.setChannelData(2, remap(input.analogVals[2] - GLOBAL_CFG.gimbalMidPointsDelta[1]));
-    sbus.setChannelData(3, remap(input.analogVals[3] - GLOBAL_CFG.gimbalMidPointsDelta[2]));
+    cur_protocol.setChannelValue(0, map(input.analogVals[0], 0, 1023, 1000, 2000));
+    cur_protocol.setChannelValue(1, remap(input.analogVals[1] - GLOBAL_CFG.gimbalMidPointsDelta[0]));
+    cur_protocol.setChannelValue(2, remap(input.analogVals[2] - GLOBAL_CFG.gimbalMidPointsDelta[1]));
+    cur_protocol.setChannelValue(3, remap(input.analogVals[3] - GLOBAL_CFG.gimbalMidPointsDelta[2]));
 
 //    // TODO: remove or configured whether print or not
 //    printlog(2, ">>gas:%d,yaw:%d,roll:%d,pitch:%d", sbus.getChannelData(0), sbus.getChannelData(1), sbus.getChannelData(2), sbus.getChannelData(3));
@@ -86,13 +85,15 @@ void runLoop() {
 //  return; // Print analog only
 
   if (input.readDigital()) {
-    sbus.setChannelData(4, input.currentFlightMode);
-    sbus.setChannelData(6, input.aux[0]);
-    sbus.setChannelData(7, input.aux[1]);
-    sbus.setChannelData(8, input.aux[2]);
+    cur_protocol.setChannelValue(4, input.currentFlightMode);
+    cur_protocol.setChannelValue(6, input.aux[0]);
+    cur_protocol.setChannelValue(7, input.aux[1]);
+    cur_protocol.setChannelValue(8, input.aux[2]);
 
     changed = true;
   }
+
+  cur_protocol.transmitAndReceive();
 
   // TODO: build packet if needed in protocol
 //  sbus.buildPacket(dataPacket, HEADER_OFFSET);

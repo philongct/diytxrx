@@ -53,6 +53,7 @@ class Config {
   public:
     char gimbalMidPointsDelta[3];
     bool midPointCorrection;
+    uint8_t moduleId = 63;   // TODO: autogenerate
 
     Config() {
       initVariables();

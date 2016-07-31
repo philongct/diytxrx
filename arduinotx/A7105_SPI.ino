@@ -23,7 +23,7 @@
 
 #include "iface_a7105.h"
 
-void A7105_WriteData(uint8_t len, uint8_t channel)
+void A7105_WriteData(uint8_t* packet, uint8_t len, uint8_t channel)
 {
 	uint8_t i;
 	CS_off;
@@ -36,7 +36,7 @@ void A7105_WriteData(uint8_t len, uint8_t channel)
 	A7105_Strobe(A7105_TX);
 }
 
-void A7105_ReadData() {
+uint16_t A7105_ReadData(uint8_t* packet) {
 	uint8_t i;
 	A7105_Strobe(0xF0); //A7105_RST_RDPTR
 	CS_off;
@@ -44,6 +44,8 @@ void A7105_ReadData() {
 	for (i=0;i<16;i++)
 		packet[i]=A7105_Read();
 	CS_on;
+
+  return 16;
 }
 
 void A7105_WriteReg(uint8_t address, uint8_t data) {

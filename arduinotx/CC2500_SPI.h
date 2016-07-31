@@ -18,42 +18,10 @@
 //-------------------------------
 //-------------------------------
 
-#if defined(CC2500_INSTALLED)
+#if defined(CC2500_INSTALLED) && not defined(__CC2500_SPI_H__)
+#define __CC2500_SPI_H__
 
 #include "iface_cc2500.h"
-
-void CC2500_ReadData(uint8_t *dpbuffer, uint8_t len)
-{
-	CC2500_ReadRegisterMulti(CC2500_3F_RXFIFO | CC2500_READ_BURST, dpbuffer, len);
-}
-
-//----------------------
-static void CC2500_ReadRegisterMulti(uint8_t address, uint8_t data[], uint8_t length)
-{
-	CC25_CSN_off;
-	CC2500_SPI_Write(address);
-	for(uint8_t i = 0; i < length; i++)
-		data[i] = CC2500_SPI_Read();
-	CC25_CSN_on;
-}
-
-//*********************************************
-
-static void CC2500_WriteRegisterMulti(uint8_t address, const uint8_t data[], uint8_t length)
-{
-	CC25_CSN_off;
-	CC2500_SPI_Write(CC2500_WRITE_BURST | address);
-	for(uint8_t i = 0; i < length; i++)
-		CC2500_SPI_Write(data[i]);
-	CC25_CSN_on;
-}
-
-void CC2500_WriteData(uint8_t *dpbuffer, uint8_t len)
-{
-	CC2500_Strobe(CC2500_SFTX);//0x3B
-	CC2500_WriteRegisterMulti(CC2500_3F_TXFIFO, dpbuffer, len);
-	CC2500_Strobe(CC2500_STX);//0x35
-}
 
 //-------------------------------------- 
 static void CC2500_SPI_Write(uint8_t command) {
@@ -84,6 +52,8 @@ void CC2500_WriteReg(uint8_t address, uint8_t data) {//same as 7105
 	CC25_CSN_on;
 } 
 
+//----------------------
+
 static uint8_t CC2500_SPI_Read(void)
 {
 	uint8_t result;
@@ -102,8 +72,18 @@ static uint8_t CC2500_SPI_Read(void)
 	}
 	return result;
 }   
-  
+
 //--------------------------------------------
+
+static void CC2500_ReadRegisterMulti(uint8_t address, uint8_t data[], uint8_t length)
+{
+  CC25_CSN_off;
+  CC2500_SPI_Write(address);
+  for(uint8_t i = 0; i < length; i++)
+    data[i] = CC2500_SPI_Read();
+  CC25_CSN_on;
+}
+
 static uint8_t CC2500_ReadReg(uint8_t address)
 { 
 	uint8_t result;
@@ -135,6 +115,27 @@ void CC2500_Strobe(uint8_t address)
 	_delay_ms(100);
 }
 */
+
+void CC2500_SetTxRxMode(uint8_t mode)
+{
+  if(mode == TX_EN)
+  {//from deviation firmware
+    CC2500_WriteReg(CC2500_02_IOCFG0, 0x2F | 0x40);
+    CC2500_WriteReg(CC2500_00_IOCFG2, 0x2F);
+  }
+  else
+    if (mode == RX_EN)
+    {
+      CC2500_WriteReg(CC2500_02_IOCFG0, 0x2F);
+      CC2500_WriteReg(CC2500_00_IOCFG2, 0x2F | 0x40);
+    }
+    else
+    {
+      CC2500_WriteReg(CC2500_02_IOCFG0, 0x2F);
+      CC2500_WriteReg(CC2500_00_IOCFG2, 0x2F);
+    }
+}
+
 uint8_t CC2500_Reset()
 {
 	CC2500_Strobe(CC2500_SRES);
@@ -165,24 +166,27 @@ void CC2500_SetPower(uint8_t power)
 	CC2500_WriteReg(CC2500_3E_PATABLE, power);
 }
 
-void CC2500_SetTxRxMode(uint8_t mode)
+//*********************************************
+
+static void CC2500_WriteRegisterMulti(uint8_t address, const uint8_t data[], uint8_t length)
 {
-	if(mode == TX_EN)
-	{//from deviation firmware
-		CC2500_WriteReg(CC2500_02_IOCFG0, 0x2F | 0x40);
-		CC2500_WriteReg(CC2500_00_IOCFG2, 0x2F);
-	}
-	else
-		if (mode == RX_EN)
-		{
-			CC2500_WriteReg(CC2500_02_IOCFG0, 0x2F);
-			CC2500_WriteReg(CC2500_00_IOCFG2, 0x2F | 0x40);
-		}
-		else
-		{
-			CC2500_WriteReg(CC2500_02_IOCFG0, 0x2F);
-			CC2500_WriteReg(CC2500_00_IOCFG2, 0x2F);
-		}
+  CC25_CSN_off;
+  CC2500_SPI_Write(CC2500_WRITE_BURST | address);
+  for(uint8_t i = 0; i < length; i++)
+    CC2500_SPI_Write(data[i]);
+  CC25_CSN_on;
+}
+
+void CC2500_ReadData(uint8_t *dpbuffer, uint8_t len)
+{
+  CC2500_ReadRegisterMulti(CC2500_3F_RXFIFO | CC2500_READ_BURST, dpbuffer, len);
+}
+
+void CC2500_WriteData(uint8_t *dpbuffer, uint8_t len)
+{
+  CC2500_Strobe(CC2500_SFTX);//0x3B
+  CC2500_WriteRegisterMulti(CC2500_3F_TXFIFO, dpbuffer, len);
+  CC2500_Strobe(CC2500_STX);//0x35
 }
 
 #endif

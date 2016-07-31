@@ -290,17 +290,13 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 
 class Protocol {
   public:
-    // will be run when device startup
+    // init the protocol
     virtual void init() = 0;
-
-    // when tx & rx are new from each other
-    virtual void bind() = 0;
 
     // transmit & receive process
     virtual void transmitAndReceive() = 0;
 
-  protected:
-    uint8_t currentState = 0;
+    virtual void setChannelValue(uint8_t channel, uint16_t value) = 0;
 };
 
 #endif

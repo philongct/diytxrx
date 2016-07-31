@@ -35,6 +35,7 @@ static uint8_t RF_POWER = 1;
 	#define	DSM2_CYRF6936_INO
 #endif
 #ifdef	CC2500_INSTALLED
+	#define TWOWAYSYNC_CC2500_INO
 	#define	FRSKY_CC2500_INO
 	#define	FRSKYX_CC2500_INO
 	#define SFHSS_CC2500_INO
