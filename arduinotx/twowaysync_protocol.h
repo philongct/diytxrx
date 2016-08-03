@@ -150,11 +150,11 @@ class TwoWaySyncProtocol: public Protocol {
       CC2500_WriteData(buff, len);
     }
 
-    bool receive(uint8_t* buffer, uint32_t timeout) { // microseconds
+    uint8_t receive(uint8_t* buffer, uint32_t timeout) { // microseconds
       CC2500_SetTxRxMode(RX_EN);
-      CC2500_Strobe(CC2500_SFRX);   // flush receive buffer
       CC2500_Strobe(CC2500_SIDLE);  // exit TX mode
       CC2500_WriteReg(CC2500_23_FSCAL3, 0x89);
+      CC2500_Strobe(CC2500_SFRX);   // flush receive buffer
       CC2500_Strobe(CC2500_SRX);
       uint8_t len;
       uint32_t time_start = micros();
@@ -165,13 +165,12 @@ class TwoWaySyncProtocol: public Protocol {
         if (len && len <= MAX_PKT)
         {
           CC2500_ReadData(buffer, len);
-          return true;
+            return buffer[0];
         }
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
 
-      Serial.println(time_exec);
-      return false;
+      return 0;
     }
 
     void buildDataPacket(uint8_t* sbus_data_pkt) {
