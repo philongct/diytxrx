@@ -49,6 +49,21 @@
 
 #define CONFIGID        235
 
+void initIoPins() {
+  pinMode(SDO_pin, INPUT);
+  digitalWrite(SDO_pin, HIGH);
+  pinMode(SDI_pin, OUTPUT);
+  pinMode(SCLK_pin, OUTPUT);
+
+#ifdef CC2500_INSTALLED
+  pinMode(CC2500_INSTALLED, OUTPUT);
+#endif
+
+#ifdef A7105_INSTALLED
+  pinMode(A7105_INSTALLED, OUTPUT);
+#endif
+}
+
 class Config {
   public:
     char gimbalMidPointsDelta[3];

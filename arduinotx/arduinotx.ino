@@ -52,7 +52,11 @@ void setup(){
   printlog(1, "Starting now");
   GLOBAL_CFG.show(1);
 
-  cur_protocol.init();
+  initIoPins();
+
+  if (cur_protocol.init()) {
+    cur_protocol.pair();
+  }
 }
 
 // the loop routine runs over and over again forever:
@@ -94,9 +98,6 @@ void runLoop() {
   }
 
   cur_protocol.transmitAndReceive();
-
-  // TODO: build packet if needed in protocol
-//  sbus.buildPacket(dataPacket, HEADER_OFFSET);
 }
 
 

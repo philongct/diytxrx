@@ -291,7 +291,7 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 class Protocol {
   public:
     // init the protocol
-    virtual void init() = 0;
+    virtual bool init() = 0;
 
     // transmit & receive process
     virtual void transmitAndReceive() = 0;
