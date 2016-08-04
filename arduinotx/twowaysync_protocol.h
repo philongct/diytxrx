@@ -222,7 +222,7 @@ class TwoWaySyncProtocol: public Protocol {
       CC2500_WriteReg(CC2500_0F_FREQ0, 0x27); //FREQ = 0x5C7627 (F = 2404MHz)
       CC2500_WriteReg(CC2500_10_MDMCFG4, 0x7B); //CHANBW_E = 1 / CHANBW_M = 3 / BW = 232.143kHz / DRATE_E = 0x0B
       CC2500_WriteReg(CC2500_11_MDMCFG3, 0x52); //DRATE_M = 0x61 Bitrate = 67047.11914 bps
-      CC2500_WriteReg(CC2500_12_MDMCFG2, 0x11); //MOD_FORMAT = 0x01 (GFSK) / SYNC_MODE = 0x01 (15/16 sync word bits detected)
+      CC2500_WriteReg(CC2500_12_MDMCFG2, 0x13); //MOD_FORMAT = 0x01 (GFSK) / SYNC_MODE = 3 (30/32 sync word bits detected)
       CC2500_WriteReg(CC2500_13_MDMCFG1, 0x23); //FEC_EN = Disable / NUM_PREAMBLE = 0x02 (4 bytes) / CHANSPC_E = 0x03
       CC2500_WriteReg(CC2500_14_MDMCFG0, 0x7a); //CHANSPC_M = 0x7A Channel Spacing = 299927Hz
       CC2500_WriteReg(CC2500_15_DEVIATN, 0x51); //DEVIATION_E = 5 / DEVIATION_M = 1 / Deviation = 57129Hz

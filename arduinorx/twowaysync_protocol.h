@@ -84,7 +84,7 @@ class TwoWaySyncProtocol {
         for (int i = sizeof(arr) - 1; i >= 0; --i) {
           printlog(0, "0x%X: 0x%X", arr[i], CC2500_ReadReg(arr[i]));
         }
-        printlog(0, "try again");
+        printlog(0, "try again %d", error_pkts);
         if (receive(packet_buff, 10000000)) {
           HelloPkt* hello = (HelloPkt*)&packet_buff[1];   // first byte is data packet len
           if (hello->head == PKT_HEAD && hello->pkt_type == HELLO_PKT) { // validate
@@ -153,6 +153,7 @@ class TwoWaySyncProtocol {
     uint32_t lastReceive = 0;  // use micros for more accuracy
     uint8_t packet_buff[MAX_PKT];
     uint8_t state = 0;
+    uint16_t error_pkts = 0;
 
     void waitForSignal() {
       if (receive(packet_buff, 12000)) {
@@ -237,6 +238,8 @@ class TwoWaySyncProtocol {
           if (buffer[0] > 0) {
             CC2500_Strobe(CC2500_SIDLE);  // to save power since not configured auto off after rx
             return buffer[0];
+          } else {
+            ++error_pkts;
           }
         }
         time_exec = micros() - time_start;
@@ -259,7 +262,7 @@ class TwoWaySyncProtocol {
       CC2500_WriteReg(CC2500_0F_FREQ0, 0x27); //FREQ = 0x5C7627 (F = 2404MHz)
       CC2500_WriteReg(CC2500_10_MDMCFG4, 0x7B); //CHANBW_E = 1 / CHANBW_M = 3 / BW = 232.143kHz / DRATE_E = 0x0B
       CC2500_WriteReg(CC2500_11_MDMCFG3, 0x52); //DRATE_M = 0x61 Bitrate = 67047.11914 bps
-      CC2500_WriteReg(CC2500_12_MDMCFG2, 0x11); //MOD_FORMAT = 0x01 (GFSK) / SYNC_MODE = 0x01 (15/16 sync word bits detected)
+      CC2500_WriteReg(CC2500_12_MDMCFG2, 0x13); //MOD_FORMAT = 0x01 (GFSK) / SYNC_MODE = 3 (30/32 sync word bits detected)
       CC2500_WriteReg(CC2500_13_MDMCFG1, 0x23); //FEC_EN = Disable / NUM_PREAMBLE = 0x02 (4 bytes) / CHANSPC_E = 0x03
       CC2500_WriteReg(CC2500_14_MDMCFG0, 0x7a); //CHANSPC_M = 0x7A Channel Spacing = 299927Hz
       CC2500_WriteReg(CC2500_15_DEVIATN, 0x51); //DEVIATION_E = 5 / DEVIATION_M = 1 / Deviation = 57129Hz
