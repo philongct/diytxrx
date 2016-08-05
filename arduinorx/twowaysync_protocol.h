@@ -10,7 +10,9 @@
 
 #define HOP_CH            15    // Number of channels for hopping
 
-#define MAX_PKT           28    // length prefix(1) + radio config length(25) + rssi(1) + crc status(1) = 28
+#define FIXED_PKT_LEN     25    // fixed radio packet length
+#define MAX_PKT           27    // radio config length(25) + rssi(1) + crc status(1) = 27
+
 #define PKT_HEAD          235
 
 #define HELLO_PKT         255
@@ -86,7 +88,7 @@ class TwoWaySyncProtocol {
         }
         printlog(0, "try again %d", error_pkts);
         if (receive(packet_buff, 10000000)) {
-          HelloPkt* hello = (HelloPkt*)&packet_buff[1];   // first byte is data packet len
+          HelloPkt* hello = (HelloPkt*)&packet_buff[0];
           if (hello->head == PKT_HEAD && hello->pkt_type == HELLO_PKT) { // validate
             transmit(0x00, (uint8_t*)hello, sizeof(HelloPkt));
             fixed_id = hello->addr;
@@ -115,7 +117,7 @@ class TwoWaySyncProtocol {
         pair();
       } else if (state == TRANSMISSION && micros() - lastReceive >= 13000) {
         lastReceive = micros();
-        if (receive(packet_buff, 7000) && packet_buff[1] == PKT_HEAD && packet_buff[2] == DATA_PKT) {
+        if (receive(packet_buff, 7000) && packet_buff[2] == DATA_PKT) {
           lastReceive -= 4000;  // delay 9ms if packet success fully received (13 - 9 = 4)
           stats.packetLost = 0;
           transmit(hop_channels[curChannel], (uint8_t*)&stats, sizeof(ReceiverStatusPkt));
@@ -143,7 +145,7 @@ class TwoWaySyncProtocol {
     }
 
     void buildSbusPacket(uint8_t* sbus_data) {
-      memcpy(&sbus_data[1], &packet_buff[3], 16);   // 16 = SBUS WORD * number of channels(11)
+      memcpy(&sbus_data[1], &packet_buff[2], 16);   // 16 = SBUS WORD * number of channels(11)
     }
 
   private:
@@ -157,8 +159,8 @@ class TwoWaySyncProtocol {
 
     void waitForSignal() {
       if (receive(packet_buff, 12000)) {
-        HelloPkt* hi = (HelloPkt*)&packet_buff[1];
-        if (hi->head == PKT_HEAD && hi->pkt_type == HELLO_PKT && hi->addr == fixed_id) {
+        HelloPkt* hi = (HelloPkt*)&packet_buff[0];
+        if (hi->pkt_type == HELLO_PKT && hi->addr == fixed_id) {
           WelcomebackPkt res;
           res.addr = fixed_id;
           memcpy(res.paired_channels, hop_channels, HOP_CH);
@@ -185,12 +187,12 @@ class TwoWaySyncProtocol {
           return;
         }
 
-        SyncTestPkt* testPkt = (SyncTestPkt*)&packet_buff[1]; // ignore packet length prefix
-        if (testPkt->head != PKT_HEAD || testPkt->pkt_type != TEST_PKT) {
+        SyncTestPkt* testPkt = (SyncTestPkt*)&packet_buff[0];
+        if (testPkt->pkt_type != TEST_PKT) {
           return;
         }
 
-        testPkt->rssi = 0;
+        testPkt->rssi = packet_buff[MAX_PKT - 2];
         transmit(hop_data[chan], (uint8_t*)&testPkt, sizeof(SyncTestPkt));
       } while (chan > 0);
 
@@ -232,12 +234,11 @@ class TwoWaySyncProtocol {
       do {
         _delay_us(1000);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
-        if (len && len <= MAX_PKT)
-        {
+        // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
+        if (len && len <= MAX_PKT) {
           CC2500_ReadData(buffer, len);
-          if (buffer[0] > 0) {
-            CC2500_Strobe(CC2500_SIDLE);  // to save power since not configured auto off after rx
-            return buffer[0];
+          if (buffer[0] == PKT_HEAD) {   // validate protocol ID
+            return len;
           } else {
             ++error_pkts;
           }
@@ -245,15 +246,16 @@ class TwoWaySyncProtocol {
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
 
+      CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
       return 0;
     }
 
     void resetSettings(uint8_t bind) {
-      CC2500_WriteReg(CC2500_17_MCSM1, 0x0C); //CCA_MODE = 0 (Always) / RXOFF_MODE = 0x11/ TXOFF_MODE = 0
+      CC2500_WriteReg(CC2500_17_MCSM1, 0x0C); //CCA_MODE = 0 (Always) / RXOFF_MODE = 11 (stay in RX)/ TXOFF_MODE = 0
       CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x01 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
-      CC2500_WriteReg(CC2500_06_PKTLEN, 0x19); //PKTLEN=0x19 (25 bytes)
+      CC2500_WriteReg(CC2500_06_PKTLEN, FIXED_PKT_LEN); //PKTLEN=0x19 (25 bytes)
       CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x0E); //PQT = 0  / CRC_AUTOFLUSH = 1 / APPEND_STATUS = 1 / ADR_CHK = 10 (Address check 0x00 broadcast)
-      CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x04); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 1 / LENGTH_CONFIG = 0
+      CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x04); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 1 / LENGTH_CONFIG = 0 (fixed length)
       CC2500_WriteReg(CC2500_3E_PATABLE, 0xff); //PATABLE(0) = 0xFF (+1dBm)
       CC2500_WriteReg(CC2500_0B_FSCTRL1, 0x0A); //FREQ_IF = 253.906kHz
       CC2500_WriteReg(CC2500_0C_FSCTRL0, 0x00); //FREQOFF = 0

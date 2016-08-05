@@ -10,7 +10,9 @@
 
 #define HOP_CH            15    // Number of channels for hopping
 
-#define MAX_PKT           28    // length prefix(1) + radio config length(25) + rssi(1) + crc status(1) = 28
+#define FIXED_PKT_LEN     25    // fixed radio packet length
+#define MAX_PKT           27    // radio config length(25) + rssi(1) + crc status(1) = 27
+
 #define PKT_HEAD          235
 
 #define HELLO_PKT         255
@@ -66,12 +68,12 @@ class TwoWaySyncProtocol: public Protocol {
         transmit(BIND_CHANNEL, (uint8_t*)&hello, sizeof(HelloPkt));
       } while (receive(response_buff, 10000) == false); // wait until
 
-      WelcomebackPkt* res = (WelcomebackPkt*)&response_buff[1];
+      WelcomebackPkt* res = (WelcomebackPkt*)&response_buff[0];
       if (res->pkt_type == WELCOMEBACK_PKT && res->addr == fixed_id) {
         memcpy(hop_channels, res->paired_channels, HOP_CH);
         curChannel = 0;     // init success
-      } else if (res->head != PKT_HEAD || res->pkt_type != HELLO_PKT || res->addr != fixed_id) {
-        return false;   // init failed
+      } else if (res->head != PKT_HEAD || res->pkt_type != HELLO_PKT || res->addr != fixed_id) {    // expect hello packet
+        return false;   // failed
       }
 
       CC2500_WriteReg(CC2500_09_ADDR, fixed_id);
@@ -89,16 +91,20 @@ class TwoWaySyncProtocol: public Protocol {
       uint8_t testResPkt[MAX_PKT];
       for (uint8_t i = sizeof(hop_data) - 1; i >= 0; --i) {
         transmit(hop_data[i], (uint8_t*)&testPkt, sizeof(SyncTestPkt));
-        if (!receive(testResPkt, 10000) || testResPkt[1] != PKT_HEAD || testResPkt[2] != WELCOMEBACK_PKT) {
+        if (!receive(testResPkt, 10000) || testResPkt[0] != PKT_HEAD) {
           return; // pair failed
-        } else if (i == 0) {
-          WelcomebackPkt* fin = (WelcomebackPkt*) &testResPkt[1];
-          if (fin->head != PKT_HEAD || fin->pkt_type != WELCOMEBACK_PKT || fin->addr != fixed_id) {
+        }
+
+        if (i == 0) {
+          WelcomebackPkt* fin = (WelcomebackPkt*) &testResPkt[0];
+          if (fin->pkt_type != WELCOMEBACK_PKT || fin->addr != fixed_id) {
             return; //pair failed
           }
           memcpy(hop_channels, fin->paired_channels, HOP_CH);
           curChannel = 0;     // pairing success
           resetSettings(0);
+        } else if (testResPkt[1] != HELLO_PKT){
+          return; // invalid
         }
       }
     }
@@ -133,6 +139,10 @@ class TwoWaySyncProtocol: public Protocol {
       channel_data[channel] = value;
     }
 
+    uint16_t getChannelValue(uint8_t channel) {
+      return channel_data[channel];
+    }
+
   private:
     uint8_t fixed_id = GLOBAL_CFG.moduleId;
     uint8_t hop_channels[HOP_CH];
@@ -162,10 +172,9 @@ class TwoWaySyncProtocol: public Protocol {
       do {
         _delay_us(1000);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
-        if (len && len <= MAX_PKT)
-        {
+        if (len && len <= MAX_PKT) { // read once as RXOFF_MODE = 0 and CRC_AUTOFLUSH = 1
           CC2500_ReadData(buffer, len);
-            return buffer[0];
+          return len;
         }
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
@@ -211,9 +220,9 @@ class TwoWaySyncProtocol: public Protocol {
     void resetSettings(uint8_t bind) {
       CC2500_WriteReg(CC2500_17_MCSM1, 0x00); //CCA_MODE = 0 (Always) / RXOFF_MODE = 0 / TXOFF_MODE = 0 (automatically switch to IDLE)
       CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x01 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
-      CC2500_WriteReg(CC2500_06_PKTLEN, 0x19); //PKTLEN=0x19 (25 bytes)
+      CC2500_WriteReg(CC2500_06_PKTLEN, FIXED_PKT_LEN); //PKTLEN=0x19 (25 bytes)
       CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x0E); //PQT = 0  / CRC_AUTOFLUSH = 1 / APPEND_STATUS = 1 / ADR_CHK = 10 (Address check 0x00 broadcast)
-      CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x04); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 1 / LENGTH_CONFIG = 0
+      CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x04); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 1 / LENGTH_CONFIG = 0 (fixed length)
       CC2500_WriteReg(CC2500_3E_PATABLE, 0xff); //PATABLE(0) = 0xFF (+1dBm)
       CC2500_WriteReg(CC2500_0B_FSCTRL1, 0x0A); //FREQ_IF = 253.906kHz
       CC2500_WriteReg(CC2500_0C_FSCTRL0, 0x00); //FREQOFF = 0

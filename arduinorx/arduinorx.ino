@@ -17,7 +17,7 @@
  * D13: SCK
  */
 
-#define SBUS_TX         4
+#define SBUS_TX         2
 #define SBUS_BAUDRATE   100000
 
 #define SBUS_DATA_LEN   25
