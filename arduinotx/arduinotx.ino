@@ -66,10 +66,12 @@ void loop() {
   runLoop();
 }
 
-int16_t remap(uint16_t input) {
+int16_t remap(int16_t input) {
+  if (input < 0) input = 0;             // due to midpoint
+  else if (input > 1023) input = 1023;  // compenstation
+
   if (GLOBAL_CFG.midPointCorrection && input < 514 && input > 510) input = 512;
   int16_t val = map(input, 0, 1023, 1000, 2000);
-  
 
   return val;
 }
@@ -83,10 +85,8 @@ void runLoop() {
     cur_protocol.setChannelValue(3, remap(input.analogVals[3] - GLOBAL_CFG.gimbalMidPointsDelta[2]));
 
 //    // TODO: remove or configured whether print or not
-//    printlog(2, ">>gas:%d,yaw:%d,roll:%d,pitch:%d", sbus.getChannelData(0), sbus.getChannelData(1), sbus.getChannelData(2), sbus.getChannelData(3));
+//    printlog(2, ">>gas:%d,yaw:%d,roll:%d,pitch:%d", cur_protocol.getChannelValue(0), cur_protocol.getChannelValue(1), cur_protocol.getChannelValue(2), cur_protocol.getChannelValue(3));
   }
-
-//  return; // Print analog only
 
   if (input.readDigital()) {
     cur_protocol.setChannelValue(4, input.currentFlightMode);
