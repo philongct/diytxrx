@@ -1,8 +1,11 @@
 #if not defined(__TWO_WAY_SYNC_PROTOCOL_H__)
 #define __TWO_WAY_SYNC_PROTOCOL_H__
 
+#include <avr/pgmspace.h>
+
 #include "protocol.h"
 #include "CC2500_SPI.h"
+#include "crc.h"
 
 #define DEFAULT_ID        0x01
 
@@ -18,29 +21,38 @@
 #define HELLO_PKT         255
 #define WELCOMEBACK_PKT   253
 #define TEST_PKT          252
+#define PAIR_PKT          251
 #define DATA_PKT          11
 
 typedef struct HelloPkt {
-  uint8_t head = PKT_HEAD;
-  uint8_t pkt_type = HELLO_PKT;
+  uint8_t len = sizeof(HelloPkt);
   uint8_t addr;
+  uint8_t pkt_type = HELLO_PKT;
 } HelloPkt;
 
 typedef struct WelcomebackPkt {
-  uint8_t head = PKT_HEAD;
-  uint8_t pkt_type = WELCOMEBACK_PKT;
+  uint8_t len = sizeof(WelcomebackPkt);
   uint8_t addr;
+  uint8_t pkt_type = WELCOMEBACK_PKT;
   uint8_t paired_channels[HOP_CH];
 } WelcomebackPkt;
 
+typedef struct PairStartPkt {
+  uint8_t len = sizeof(PairStartPkt);
+  uint8_t addr;
+  uint8_t pkt_type = PAIR_PKT;
+} PairStartPkt;
+
 typedef struct SyncTestPkt {
-  uint8_t head = PKT_HEAD;
+  uint8_t len = sizeof(SyncTestPkt);
+  uint8_t addr;
   uint8_t pkt_type = TEST_PKT;
   uint8_t rssi = 0;
 } SyncTestPkt;
 
 typedef struct ReceiverStatusPkt {
-  uint8_t head = PKT_HEAD;
+  uint8_t len = sizeof(ReceiverStatusPkt);
+  uint8_t addr;
   uint8_t pkt_type = DATA_PKT;
   uint8_t packetLost = 0;
   uint8_t rssi = 0;
@@ -67,6 +79,8 @@ const PROGMEM uint8_t hop_data[] = {
   0x34, 0x1B, 0x00, 0x1D, 0x03
 };
 
+uint8_t lq_table[50]; // rssi table for each channel
+
 class TwoWaySyncProtocol {
   public:
     ReceiverStatusPkt stats;
@@ -87,11 +101,15 @@ class TwoWaySyncProtocol {
           printlog(0, "0x%X: 0x%X", arr[i], CC2500_ReadReg(arr[i]));
         }
         printlog(0, "try again %d", error_pkts);
-        if (receive(packet_buff, 10000000)) {
+        if (receive(packet_buff, 3000000)) {
           HelloPkt* hello = (HelloPkt*)&packet_buff[0];
-          if (hello->head == PKT_HEAD && hello->pkt_type == HELLO_PKT) { // validate
-            transmit(0x00, (uint8_t*)hello, sizeof(HelloPkt));
+          if (hello->pkt_type == HELLO_PKT) { // validate
+            Serial.println("response to hello");
             fixed_id = hello->addr;
+            for (int i = 0; i < 5; ++i) {
+              _delay_us(2000);
+              transmit(BIND_CHANNEL, (uint8_t*)hello);
+            }
             state = PAIRING;
           } else {
             Serial.println("invalid pkt");
@@ -120,14 +138,16 @@ class TwoWaySyncProtocol {
         if (receive(packet_buff, 7000) && packet_buff[2] == DATA_PKT) {
           lastReceive -= 4000;  // delay 9ms if packet success fully received (13 - 9 = 4)
           stats.packetLost = 0;
-          transmit(hop_channels[curChannel], (uint8_t*)&stats, sizeof(ReceiverStatusPkt));
+          Serial.println(".");
+//          transmit(hop_channels[curChannel], (uint8_t*)&stats);
         } else {
           ++stats.packetLost;
-          if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
-            state = RADIO_LOST;
-          }
+          printlog(0, "%Xx", hop_channels[curChannel]);
+//          if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
+//            state = RADIO_LOST;
+//          }
         }
-        ++curChannel;
+//        curChannel = ++curChannel % HOP_CH;
         return stats.packetLost == 0;
       } else if (state == RADIO_LOST) {
         if (curChannel != 255) {
@@ -162,70 +182,82 @@ class TwoWaySyncProtocol {
         HelloPkt* hi = (HelloPkt*)&packet_buff[0];
         if (hi->pkt_type == HELLO_PKT && hi->addr == fixed_id) {
           WelcomebackPkt res;
-          res.addr = fixed_id;
           memcpy(res.paired_channels, hop_channels, HOP_CH);
-          transmit(0, (uint8_t*)&res, sizeof(WelcomebackPkt));
+          transmit(0, (uint8_t*)&res);
 
           curChannel = 0;   // pairing success
           state = TRANSMISSION;
 
-          CC2500_WriteReg(CC2500_09_ADDR, fixed_id);
           CC2500_WriteReg(CC2500_0A_CHANNR, hop_channels[curChannel]);
         }
       }
     }
 
     void pair() {
+      Serial.println("listen to pair...");
       resetSettings(1);
-      CC2500_WriteReg(CC2500_09_ADDR, fixed_id);
 
-      uint8_t chan = sizeof(hop_data);
+      while(receive(packet_buff, 200000) == false);
+
+      PairStartPkt* res = (PairStartPkt*)&packet_buff[0];
+      if (res->pkt_type != PAIR_PKT || res->addr != fixed_id) {
+        return;
+      }
+
+      Serial.println("start pairing...");
+
+      int chanCounter = 50;  // hop_data len
+      u8 chann = 0;
       do {
-        --chan;
-        CC2500_WriteReg(CC2500_0A_CHANNR, hop_data[chan]);
-        if (!receive(packet_buff, 20000)) {
+        --chanCounter;
+        chann = pgm_read_byte_near(&hop_data[chanCounter]);
+        CC2500_WriteReg(CC2500_0A_CHANNR, chann);
+        if (!receive(packet_buff, 200000)) {
+          printlog(0, "failed at %d", chanCounter);
           return;
         }
-
-        SyncTestPkt* testPkt = (SyncTestPkt*)&packet_buff[0];
-        if (testPkt->pkt_type != TEST_PKT) {
-          return;
-        }
-
-        testPkt->rssi = packet_buff[MAX_PKT - 2];
-        transmit(hop_data[chan], (uint8_t*)&testPkt, sizeof(SyncTestPkt));
-      } while (chan > 0);
+        lq_table[chanCounter] = CC2500_ReadReg(CC2500_34_RSSI);
+        printlog(0, "%d rssi: %d", chann, lq_table[chanCounter]);
+      } while (chanCounter > 0);
 
       WelcomebackPkt fin;
-      fin.addr = fixed_id;
+      int okCount = 0;
       for (uint8_t i = 0; i < HOP_CH; ++i) {    // TODO: use rssi to determine which is best channel
-        fin.paired_channels[i] = hop_data[i];
+        fin.paired_channels[i] = pgm_read_byte_near(&hop_data[i]);
       }
 
       memcpy(hop_channels, fin.paired_channels, HOP_CH);
-      transmit(hop_data[chan], (uint8_t*)&fin, sizeof(WelcomebackPkt));
+      for (u8 i= 0; i < 2; ++i) {
+        _delay_us(2000);
+        transmit(chann, (uint8_t*)&fin);
+      }
       curChannel = 0;   // pairing success
       state = TRANSMISSION;
 
       // get ready for transmission state
       resetSettings(0);
-      CC2500_WriteReg(CC2500_09_ADDR, fixed_id);
       CC2500_WriteReg(CC2500_0A_CHANNR, hop_channels[curChannel]);
+      Serial.println("start transmission");
+
+      // wait for first packet to end pairing stage
+      while(!receive(packet_buff, 700000));
+      lastReceive = micros() - 4000;
+//      ++curChannel;
     }
 
-    void transmit(uint8_t channel, uint8_t* buff, uint8_t len) {
-      CC2500_SetTxRxMode(TX_EN);
+    void transmit(uint8_t channel, uint8_t* buff) {
+      buff[1] = fixed_id; // auto append address
+
       CC2500_Strobe(CC2500_SIDLE);  // exit RX mode
       CC2500_WriteReg(CC2500_0A_CHANNR, channel);
-      CC2500_WriteReg(CC2500_23_FSCAL3, 0x89);
-      CC2500_Strobe(CC2500_STX);
-      CC2500_WriteData(buff, len);
+      CC2500_SetTxRxMode(TX_EN);
+      CC2500_WriteData(buff, MAX_PKT);
+      _delay_us(3000);  // wait for transmission complete
     }
 
     uint8_t receive(uint8_t* buffer, uint32_t timeout) { // timeout in microseconds
-      CC2500_SetTxRxMode(RX_EN);
       CC2500_Strobe(CC2500_SIDLE);  // exit TX mode
-      CC2500_WriteReg(CC2500_23_FSCAL3, 0x89);
+      CC2500_SetTxRxMode(RX_EN);
       CC2500_Strobe(CC2500_SFRX);   // flush receive buffer
       CC2500_Strobe(CC2500_SRX);
       uint8_t len;
@@ -237,11 +269,9 @@ class TwoWaySyncProtocol {
         // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
         if (len && len <= MAX_PKT) {
           CC2500_ReadData(buffer, len);
-          if (buffer[0] == PKT_HEAD) {   // validate protocol ID
-            return len;
-          } else {
-            ++error_pkts;
-          }
+          CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
+          // TODO: CRC check here
+          return len;
         }
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
@@ -254,8 +284,8 @@ class TwoWaySyncProtocol {
       CC2500_WriteReg(CC2500_17_MCSM1, 0x0C); //CCA_MODE = 0 (Always) / RXOFF_MODE = 11 (stay in RX)/ TXOFF_MODE = 0
       CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x01 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
       CC2500_WriteReg(CC2500_06_PKTLEN, FIXED_PKT_LEN); //PKTLEN=0x19 (25 bytes)
-      CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x0E); //PQT = 0  / CRC_AUTOFLUSH = 1 / APPEND_STATUS = 1 / ADR_CHK = 10 (Address check 0x00 broadcast)
-      CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x04); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 1 / LENGTH_CONFIG = 0 (fixed length)
+      CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x04); //PQT = 0  / CRC_AUTOFLUSH = 0 / APPEND_STATUS = 1 / ADR_CHK = 00 (no address check)
+      CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x01); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 0 / LENGTH_CONFIG = 01 (fixed length)
       CC2500_WriteReg(CC2500_3E_PATABLE, 0xff); //PATABLE(0) = 0xFF (+1dBm)
       CC2500_WriteReg(CC2500_0B_FSCTRL1, 0x0A); //FREQ_IF = 253.906kHz
       CC2500_WriteReg(CC2500_0C_FSCTRL0, 0x00); //FREQOFF = 0
@@ -285,15 +315,10 @@ class TwoWaySyncProtocol {
       CC2500_WriteReg(CC2500_2E_TEST0, 0x0b); //0x0B (Same as specified in datasheet and by SmartRF sw)
       CC2500_WriteReg(CC2500_03_FIFOTHR, 0x07);
       CC2500_WriteReg(CC2500_09_ADDR, 0x00);      // broadcast address
-
-      CC2500_SetTxRxMode(RX_EN);  // set GDO0/GDO2 depend on tx or rx mode
       CC2500_SetPower(bind ? CC2500_BIND_POWER : CC2500_HIGH_POWER);
+      CC2500_WriteReg(CC2500_0A_CHANNR, BIND_CHANNEL);
 
       CC2500_Strobe(CC2500_SIDLE);    // Go to idle...
-
-      CC2500_WriteReg(CC2500_0A_CHANNR, BIND_CHANNEL);
-      CC2500_WriteReg(CC2500_23_FSCAL3, 0x89);
-      CC2500_Strobe(CC2500_SFRX);
     }
 };
 
