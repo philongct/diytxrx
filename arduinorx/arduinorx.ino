@@ -55,7 +55,8 @@ void setup(){
 
 // the loop routine runs over and over again forever:
 void loop() {
-  if (rx.receiveData()) {
+  u32 remain;
+  if (rx.receiveData(&remain)) {
     rx.buildSbusPacket(sbusPacket);
   }
 
@@ -67,6 +68,7 @@ void loop() {
 
   rx.stats.battery1 = input.getCellVoltage(1);
   rx.stats.battery1 = input.getCellVoltage(2);
+  delayMicroseconds(remain);
 }
 
 void sbusLostSignal(uint8_t *sbusPacket) {

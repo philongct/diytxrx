@@ -130,7 +130,7 @@ class TwoWaySyncProtocol {
        receiver interval if not receiving any packet: 13
        sender interval: 13
     */
-    bool receiveData() {
+    bool receiveData(u32* remain) {
       if (state == PAIRING) {
         pair();
       } else if (state == TRANSMISSION && micros() - lastReceive >= 13000) {
@@ -148,6 +148,7 @@ class TwoWaySyncProtocol {
 //          }
         }
 //        curChannel = ++curChannel % HOP_CH;
+        (*remain) = 13000 - (micros() - lastReceive);
         return stats.packetLost == 0;
       } else if (state == RADIO_LOST) {
         if (curChannel != 255) {
