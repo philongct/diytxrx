@@ -10,9 +10,14 @@ class LED {
     }
 
     void changePin(uint8_t pinNumber) {
-      pin = pinNumber;
-      pinMode(pin, OUTPUT);
-      digitalWrite(pin, state);
+      if ( pin != pinNumber) {
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, HIGH);  // turn off
+        
+        pin = pinNumber;
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, state);
+      }
     }
 
     void loop() {

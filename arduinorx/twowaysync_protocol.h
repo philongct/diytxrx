@@ -143,6 +143,8 @@ class TwoWaySyncProtocol {
         }
         if (receive(packet_buff, 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           lastReceive -= 4000;  // delay 9ms if packet success fully received (13 - 9 = 4)
+          stats.rssi = CC2500_ReadReg(CC2500_34_RSSI);
+          lq_table[curChannel] = stats.rssi;
           stats.packetLost = 0;
           Serial.println(".");
 //          transmit(hop_channels[curChannel], (uint8_t*)&stats);

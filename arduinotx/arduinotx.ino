@@ -38,11 +38,19 @@ Input input(&notifier);
 
 TwoWaySyncProtocol cur_protocol;
 
-void setup(){
+void setup() {
   printf_begin();
   printlog(1, "Initiallizing...");
-  
   notifier.begin();
+
+  int inputBattery = analogRead(BATTERY_PIN);
+  printlog(0, "battery %d", inputBattery);
+  // expect battery > 7v (3.5*2); 511 is 5v (2.5*2)
+  while(inputBattery > 511 && inputBattery < 716) {
+    notifier.loop();
+    notifier.buzzAlertBattery();
+  }
+  
   GLOBAL_CFG.load();
 
   if (input.calibrateGimbalMidPoint(&GLOBAL_CFG)) {
@@ -63,9 +71,20 @@ void setup(){
 
 // the loop routine runs over and over again forever:
 void loop() {
+  batteryCheck();
   notifier.loop();
 
   runLoop();
+}
+
+void batteryCheck() {
+  //battery is <6.6 (3.3*2)
+  int batt = analogRead(BATTERY_PIN);
+  if (batt > 511 && batt < 675) { 
+    notifier.buzzAlertBattery();
+  } else {
+    notifier.showOK();
+  }
 }
 
 int16_t remap(int16_t input) {

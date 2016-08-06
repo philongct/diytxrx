@@ -43,6 +43,7 @@ uint8_t sbusPacket[SBUS_DATA_LEN] = {   // 11 channels available
   0x0f,0x01,0x04,0x20,0x00,0xff,0x07,0x40,0x00,0x02,0x10,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
 unsigned long lastWrite = micros();
+u32 loopCounter = 0;
 
 void setup(){
   printf_begin();
@@ -73,7 +74,11 @@ void loop() {
 
   rx.stats.battery1 = input.getCellVoltage(1);
   rx.stats.battery1 = input.getCellVoltage(2);
+  if (loopCounter % 100 == 0) {
+    printlog(0, "rssi %d", rx.stats.rssi);
+  }
   delayMicroseconds(remain);
+  ++loopCounter;
 //  Serial.print("r ");
 //  Serial.println(micros() - start);
 }

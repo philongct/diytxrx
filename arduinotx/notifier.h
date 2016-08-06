@@ -6,7 +6,7 @@
 class Notifier {
   public:
 
-    Notifier() : led(FLIGHT_PIN) { }
+    Notifier() : led(LED_GREEN_PIN) { }
 
     void begin() {
       // starting up
@@ -19,22 +19,31 @@ class Notifier {
 
     // Battery is at low level
     void buzzWarnBattery() {
-    
+      priority = 1;
+      led.changePin(LED_RED_PIN);
+      led.blink(15, 15);
     }
 
     // Battery is at very low level
     void buzzAlertBattery() {
-    
+      priority = 1;
+      led.changePin(LED_RED_PIN);
+      led.blink(6, 6);
     }
 
     void warnRf(uint8_t mode) {
-      if (mode == 0)         // rssi low
-        led.blink(10, 10);
-      else if (mode == 1)    // Package lost
-        led.blink(6, 6);
+      if (priority != 1) {
+        led.changePin(LED_GREEN_PIN);
+        if (mode == 0)         // rssi low
+          led.blink(10, 10);
+        else if (mode == 1)    // Package lost
+          led.blink(6, 6);
+      }
     }
 
     void showOK() {
+      priority = 0;
+      led.changePin(LED_GREEN_PIN);
       led.blink(200, 5);
     }
 
@@ -44,6 +53,8 @@ class Notifier {
 
   private:
     LED led;
+
+    u8 priority = 0;
 
     long led_last_flash = 0;
     long buzzer_last_tone = 0;

@@ -12,7 +12,9 @@
 #define AUX_DOWN_PIN    5
 
 #define BUZZ_PIN        8
-#define FLIGHT_PIN      6   // 6
+#define LED_GREEN_PIN   6   // 6
+#define LED_RED_PIN     7
+#define BATTERY_PIN     A7
 
 //*******************
 //***   Pinouts   ***
