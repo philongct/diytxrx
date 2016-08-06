@@ -96,8 +96,8 @@ class TwoWaySyncProtocol: public Protocol {
       return true;    // init success, prepare for paring
     }
 
-    void pair() {
-      if (curChannel < 255) return;   // no need to pair
+    bool pair() {
+      if (curChannel < 255) return true;   // no need to pair
 
       Serial.println("start pairing...");
 
@@ -117,11 +117,11 @@ class TwoWaySyncProtocol: public Protocol {
 
       printlog(0, "end wait...");
       if (!receive(packet_buff, 200000)) {
-        return;
+        return false;
       }
       WelcomebackPkt* fin = (WelcomebackPkt*) &packet_buff[0];
       if (fin->pkt_type != WELCOMEBACK_PKT || fin->addr != fixed_id) {
-        return; //pair failed
+        return false; //pair failed
       }
       memcpy(hop_channels, fin->paired_channels, HOP_CH);
       curChannel = 0;     // pairing success
@@ -130,6 +130,8 @@ class TwoWaySyncProtocol: public Protocol {
       for (int i = 0 ; i < HOP_CH; ++i) {
         printlog(0, "%X ", hop_channels[i]);
       }
+
+      return true;
     }
 
     /**
@@ -146,11 +148,11 @@ class TwoWaySyncProtocol: public Protocol {
     */
     void transmitAndReceive() {
       if (curChannel == 255) return; // not ready to work
-      Serial.println(">");
-
       uint32_t begin = micros();
       if (begin - lastTransmit >= 13000) {
         lastTransmit = begin;
+//        Serial.println(lastTransmit);
+//        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);      // 16 is channel data length (11 (bit)*11(channel) =
 //        receive(packet_buff, 9000);    // TODO: need fine tunning timeout

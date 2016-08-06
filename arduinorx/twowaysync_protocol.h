@@ -129,13 +129,19 @@ class TwoWaySyncProtocol {
        receiver interval after receiving packet: 9
        receiver interval if not receiving any packet: 13
        sender interval: 13
+
+       return remaining interval to execute remaining works
     */
     bool receiveData(u32* remain) {
       if (state == PAIRING) {
         pair();
-      } else if (state == TRANSMISSION && micros() - lastReceive >= 13000) {
-        lastReceive = micros();
-        if (receive(packet_buff, 7000) && packet_buff[2] == DATA_PKT) {
+      } else if (state == TRANSMISSION) {
+        if (micros() - lastReceive >= 13000) {
+//          curChannel = ++curChannel % HOP_CH;
+          lastReceive = micros();
+//          Serial.println(lastReceive);
+        }
+        if (receive(packet_buff, 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           lastReceive -= 4000;  // delay 9ms if packet success fully received (13 - 9 = 4)
           stats.packetLost = 0;
           Serial.println(".");
@@ -143,9 +149,9 @@ class TwoWaySyncProtocol {
         } else {
           ++stats.packetLost;
           printlog(0, "%Xx", hop_channels[curChannel]);
-//          if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
-//            state = RADIO_LOST;
-//          }
+          if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
+            state = RADIO_LOST;
+          }
         }
 //        curChannel = ++curChannel % HOP_CH;
         (*remain) = 13000 - (micros() - lastReceive);
@@ -166,7 +172,7 @@ class TwoWaySyncProtocol {
     }
 
     void buildSbusPacket(uint8_t* sbus_data) {
-      memcpy(&sbus_data[1], &packet_buff[2], 16);   // 16 = SBUS WORD * number of channels(11)
+      memcpy(&sbus_data[1], &packet_buff[3], 16);   // 16 = SBUS WORD * number of channels(11)
     }
 
   private:
@@ -198,7 +204,7 @@ class TwoWaySyncProtocol {
       Serial.println("listen to pair...");
       resetSettings(1);
 
-      while(receive(packet_buff, 200000) == false);
+      while (receive(packet_buff, 200000) == false);
 
       PairStartPkt* res = (PairStartPkt*)&packet_buff[0];
       if (res->pkt_type != PAIR_PKT || res->addr != fixed_id) {
@@ -228,7 +234,7 @@ class TwoWaySyncProtocol {
       }
 
       memcpy(hop_channels, fin.paired_channels, HOP_CH);
-      for (u8 i= 0; i < 2; ++i) {
+      for (u8 i = 0; i < 2; ++i) {
         _delay_us(2000);
         transmit(chann, (uint8_t*)&fin);
       }
@@ -241,9 +247,8 @@ class TwoWaySyncProtocol {
       Serial.println("start transmission");
 
       // wait for first packet to end pairing stage
-      while(!receive(packet_buff, 700000));
+      while (!receive(packet_buff, 700000));
       lastReceive = micros() - 4000;
-//      ++curChannel;
     }
 
     void transmit(uint8_t channel, uint8_t* buff) {

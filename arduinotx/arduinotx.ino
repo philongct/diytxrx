@@ -55,7 +55,9 @@ void setup(){
   initIoPins();
 
   if (cur_protocol.init()) {
-    cur_protocol.pair();
+    while(!cur_protocol.pair()) {
+      delay(1000);
+    }
   }
 }
 

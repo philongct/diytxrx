@@ -55,10 +55,15 @@ void setup(){
 
 // the loop routine runs over and over again forever:
 void loop() {
+//  u32 start = micros();
   u32 remain;
   if (rx.receiveData(&remain)) {
     rx.buildSbusPacket(sbusPacket);
   }
+
+//  Serial.print("r ");
+//  Serial.println(micros() - start);
+//  start = micros();
 
   if (rx.isRadioLost() && input.getfailSafeEnabled()) {
     sbusLostSignal(sbusPacket);
@@ -69,6 +74,8 @@ void loop() {
   rx.stats.battery1 = input.getCellVoltage(1);
   rx.stats.battery1 = input.getCellVoltage(2);
   delayMicroseconds(remain);
+//  Serial.print("r ");
+//  Serial.println(micros() - start);
 }
 
 void sbusLostSignal(uint8_t *sbusPacket) {
