@@ -254,13 +254,15 @@ class TwoWaySyncProtocol {
     }
 
     void transmit(uint8_t channel, uint8_t* buff) {
+      buff[0] = FIXED_PKT_LEN;
       buff[1] = fixed_id; // auto append address
 
       CC2500_Strobe(CC2500_SIDLE);  // exit RX mode
       CC2500_WriteReg(CC2500_0A_CHANNR, channel);
       CC2500_SetTxRxMode(TX_EN);
       CC2500_WriteData(buff, MAX_PKT);
-      _delay_us(3000);  // wait for transmission complete
+      _delay_us(5000);  // wait for transmission complete
+      CC2500_SetTxRxMode(TXRX_OFF);
     }
 
     uint8_t receive(uint8_t* buffer, uint32_t timeout) { // timeout in microseconds
@@ -275,17 +277,27 @@ class TwoWaySyncProtocol {
         _delay_us(1000);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
         // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
-        if (len && len <= MAX_PKT) {
-          CC2500_ReadData(buffer, len);
+        if (len && len <= FIXED_PKT_LEN) {
+          CC2500_ReadData(buffer, FIXED_PKT_LEN);
+          CC2500_SetTxRxMode(TXRX_OFF);
           CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
-          // TODO: CRC check here
-          return len;
+          if (crcCheck(buffer)) {
+            return len;
+          } else {
+            ++error_pkts;
+            return 0;
+          }
         }
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
 
+      CC2500_SetTxRxMode(TXRX_OFF);
       CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
       return 0;
+    }
+
+    bool crcCheck(u8* raw_pkt) {
+      return (u8)(~raw_pkt[3]) == raw_pkt[FIXED_PKT_LEN - 1];
     }
 
     void resetSettings(uint8_t bind) {

@@ -151,7 +151,7 @@ class TwoWaySyncProtocol: public Protocol {
       uint32_t begin = micros();
       if (begin - lastTransmit >= 13000) {
         lastTransmit = begin;
-//        Serial.println(lastTransmit);
+        Serial.println(lastTransmit);
 //        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);      // 16 is channel data length (11 (bit)*11(channel) =
@@ -178,13 +178,17 @@ class TwoWaySyncProtocol: public Protocol {
     uint8_t packet_buff[MAX_PKT];
 
     void transmit(uint8_t channel, uint8_t* buff) {
-      buff[1] = fixed_id; // auto append address
-      
       CC2500_Strobe(CC2500_SIDLE);  // exit RX mode
       CC2500_WriteReg(CC2500_0A_CHANNR, channel);
       CC2500_SetTxRxMode(TX_EN);
+      
+      buff[0] = FIXED_PKT_LEN;
+      buff[1] = fixed_id; // auto append address
+      buff[FIXED_PKT_LEN - 1] = ~buff[3]; // lazy packet check. TODO: put crc here
+      
       CC2500_WriteData(buff, FIXED_PKT_LEN);
-      _delay_us(3000);  // wait for transmission complete
+      _delay_us(5000);  // wait for transmission complete
+      CC2500_SetTxRxMode(TXRX_OFF);
     }
 
     uint8_t receive(uint8_t* buffer, uint32_t timeout) { // microseconds
@@ -198,14 +202,15 @@ class TwoWaySyncProtocol: public Protocol {
       do {
         _delay_us(1000);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
-        if (len >= MAX_PKT) { // read once as RXOFF_MODE = 0 and CRC_AUTOFLUSH = 1
-          CC2500_ReadData(buffer, len);
-          CC2500_Strobe(CC2500_SIDLE);
+        if (len && len <= FIXED_PKT_LEN) {
+          CC2500_ReadData(buffer, FIXED_PKT_LEN);
+          CC2500_SetTxRxMode(TXRX_OFF);
           return len;
         }
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
 
+      CC2500_SetTxRxMode(TXRX_OFF);
       return 0;
     }
 
@@ -250,7 +255,7 @@ class TwoWaySyncProtocol: public Protocol {
     void resetSettings(uint8_t bind) {
       CC2500_WriteReg(CC2500_17_MCSM1, 0x0C); //CCA_MODE = 0 (Always) / RXOFF_MODE = 0 / TXOFF_MODE = 0 (automatically switch to IDLE)
       CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x01 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
-      CC2500_WriteReg(CC2500_06_PKTLEN, 0x25); //PKTLEN=0x19 (25 bytes)
+      CC2500_WriteReg(CC2500_06_PKTLEN, FIXED_PKT_LEN); //PKTLEN=0x19 (25 bytes)
       CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x04); //PQT = 0  / CRC_AUTOFLUSH = 0 / APPEND_STATUS = 1 / ADR_CHK = 00 (Address check 0x00 broadcast)
       CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x01); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 1 / LENGTH_CONFIG = 0 (fixed length)
       CC2500_WriteReg(CC2500_3E_PATABLE, 0xff); //PATABLE(0) = 0xFF (+1dBm)
