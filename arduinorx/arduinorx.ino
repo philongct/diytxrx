@@ -57,8 +57,7 @@ void setup(){
 // the loop routine runs over and over again forever:
 void loop() {
 //  u32 start = micros();
-  u32 remain;
-  if (rx.receiveData(&remain)) {
+  if (rx.receiveData()) {
     rx.buildSbusPacket(sbusPacket);
   }
 
@@ -77,7 +76,6 @@ void loop() {
   if (loopCounter % 100 == 0) {
     printlog(0, "rssi %d", rx.stats.rssi);
   }
-  delayMicroseconds(remain);
   ++loopCounter;
 //  Serial.print("r ");
 //  Serial.println(micros() - start);

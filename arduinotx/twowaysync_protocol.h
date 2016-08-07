@@ -151,7 +151,7 @@ class TwoWaySyncProtocol: public Protocol {
       uint32_t begin = micros();
       if (begin - lastTransmit >= 13000) {
         lastTransmit = begin;
-        Serial.println(lastTransmit);
+        Serial.println(lastTransmit); // with this, we'll have interval ~13.5ms
 //        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);      // 16 is channel data length (11 (bit)*11(channel) =
@@ -170,6 +170,7 @@ class TwoWaySyncProtocol: public Protocol {
     }
 
   private:
+    u16 count = 0;
     uint8_t fixed_id = GLOBAL_CFG.moduleId;
     uint8_t hop_channels[HOP_CH];
     uint8_t curChannel = 255;   // 255 mean not successfully paired
