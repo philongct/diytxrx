@@ -28,6 +28,7 @@ typedef struct HelloPkt {
   uint8_t len = sizeof(HelloPkt);
   uint8_t addr;
   uint8_t pkt_type = HELLO_PKT;
+  uint8_t padding[FIXED_PKT_LEN - 3]; // remaining bytes to fit FIXED_PKT_LEN
 } HelloPkt;
 
 typedef struct WelcomebackPkt {
@@ -35,12 +36,14 @@ typedef struct WelcomebackPkt {
   uint8_t addr;
   uint8_t pkt_type = WELCOMEBACK_PKT;
   uint8_t paired_channels[HOP_CH];
+  uint8_t padding[FIXED_PKT_LEN - HOP_CH - 3]; // remaining bytes to fit FIXED_PKT_LEN
 } WelcomebackPkt;
 
 typedef struct PairStartPkt {
   uint8_t len = sizeof(PairStartPkt);
   uint8_t addr;
   uint8_t pkt_type = PAIR_PKT;
+  uint8_t padding[FIXED_PKT_LEN - 3]; // remaining bytes to fit FIXED_PKT_LEN
 } PairStartPkt;
 
 typedef struct SyncTestPkt {
@@ -48,6 +51,7 @@ typedef struct SyncTestPkt {
   uint8_t addr;
   uint8_t pkt_type = TEST_PKT;
   uint8_t rssi = 0;
+  uint8_t padding[FIXED_PKT_LEN - 4]; // remaining bytes to fit FIXED_PKT_LEN
 } SyncTestPkt;
 
 typedef struct ReceiverStatusPkt {
@@ -58,6 +62,7 @@ typedef struct ReceiverStatusPkt {
   uint8_t rssi = 0;
   uint8_t battery1 = 200;
   uint8_t battery2 = 200;
+  uint8_t padding[FIXED_PKT_LEN - 7]; // remaining bytes to fit FIXED_PKT_LEN
 } ReceiverStatusPkt;
 
 enum {
@@ -139,13 +144,12 @@ class TwoWaySyncProtocol {
         if (micros() - lastReceive >= 13000) {
 //          curChannel = ++curChannel % HOP_CH;
           lastReceive = micros();
-          Serial.println(lastReceive);
+//          Serial.println(lastReceive);
         } else {
           delayMicroseconds(13000 - (micros() - lastReceive));  // delay until we reach 13000
         }
         if (receive(hop_channels[curChannel], packet_buff, 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           lastReceive -= 4700;  // delay 9ms if packet success fully received (13 - 9 = 4)
-          stats.rssi = CC2500_ReadReg(CC2500_34_RSSI);
           lq_table[curChannel] = stats.rssi;
           stats.packetLost = 0;
           printlog(0, "%X.", hop_channels[curChannel]);
@@ -217,7 +221,7 @@ class TwoWaySyncProtocol {
 
       int chanCounter = 50;  // hop_data len
       u8 chann = 0;
-      u8 bestRssi = 0;
+      u8 bestLqi = 0;
       u8 bestChann = 0;
       do {
         --chanCounter;
@@ -227,8 +231,8 @@ class TwoWaySyncProtocol {
           return;
         }
         
-        lq_table[chanCounter] = CC2500_ReadReg(CC2500_34_RSSI);
-        if (lq_table[chanCounter] > bestRssi) bestChann = chann;
+        lq_table[chanCounter] = CC2500_ReadReg(CC2500_33_LQI);
+        if (lq_table[chanCounter] > bestLqi) bestChann = chann;
         printlog(0, "%d rssi: %d", chann, lq_table[chanCounter]);
       } while (chanCounter > 0);
 
@@ -271,6 +275,9 @@ class TwoWaySyncProtocol {
       CC2500_SetTxRxMode(TXRX_OFF);
     }
 
+    /*
+     * note: size of buffer must >= MAX_PKT
+     */
     uint8_t receive(uint8_t channel, uint8_t* buffer, uint32_t timeout) { // timeout in microseconds
       CC2500_Strobe(CC2500_SIDLE);  // exit TX mode
       CC2500_WriteReg(CC2500_0A_CHANNR, channel);
@@ -286,6 +293,7 @@ class TwoWaySyncProtocol {
         // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
         if (len && len <= FIXED_PKT_LEN) {
           CC2500_ReadData(buffer, FIXED_PKT_LEN);
+//          stats.rssi = CC2500_ReadReg(CC2500_34_RSSI);
           CC2500_SetTxRxMode(TXRX_OFF);
           CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
           if (crcCheck(buffer)) {

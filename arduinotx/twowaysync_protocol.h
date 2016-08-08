@@ -26,6 +26,7 @@ typedef struct HelloPkt {
   uint8_t len = sizeof(HelloPkt);
   uint8_t addr;
   uint8_t pkt_type = HELLO_PKT;
+  uint8_t padding[FIXED_PKT_LEN - 3];  // remaining bytes to fixed packet length
 } HelloPkt;
 
 typedef struct WelcomebackPkt {
@@ -33,12 +34,14 @@ typedef struct WelcomebackPkt {
   uint8_t addr;
   uint8_t pkt_type = WELCOMEBACK_PKT;
   uint8_t paired_channels[HOP_CH];
+  uint8_t padding[FIXED_PKT_LEN - HOP_CH - 3]; // remaining bytes to fixed packet length
 } WelcomebackPkt;
 
 typedef struct PairStartPkt {
   uint8_t len = sizeof(PairStartPkt);
   uint8_t addr;
   uint8_t pkt_type = PAIR_PKT;
+  uint8_t padding[FIXED_PKT_LEN - 3]; // remaining bytes to fixed packet length
 } PairStartPkt;
 
 typedef struct SyncTestPkt {
@@ -46,6 +49,7 @@ typedef struct SyncTestPkt {
   uint8_t addr;
   uint8_t pkt_type = TEST_PKT;
   uint8_t rssi = 0;
+  uint8_t padding[FIXED_PKT_LEN - 4]; // remaining bytes to fixed packet length
 } SyncTestPkt;
 
 typedef struct DataPkt {
@@ -53,6 +57,7 @@ typedef struct DataPkt {
   uint8_t addr;
   uint8_t pkt_type = DATA_PKT;
   uint8_t data [16];
+  uint8_t padding[FIXED_PKT_LEN - 16 - 3]; // remaining bytes to fixed packet length
 } DataPkt;
 
 const PROGMEM uint8_t hop_data[] = {
