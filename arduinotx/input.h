@@ -7,7 +7,7 @@
 #define AUX_NUM     3
 
 // Pin A1-A4 for yaw, gas, roll, pitch. Keep them in order
-uint8_t const ANALOGS[AXIS_NUM] = {A1, A2, A3, A4};
+uint8_t const ANALOGS[AXIS_NUM] = {A0, A1, A2, A3};
 
 class Input {
   public:
