@@ -9,8 +9,6 @@
 
 #define DEFAULT_ID        0x01
 
-#define BIND_CHANNEL      0x05
-
 #define HOP_CH            15    // Number of channels for hopping
 
 #define FIXED_PKT_LEN     25    // fixed radio packet length
@@ -84,7 +82,10 @@ const PROGMEM uint8_t hop_data[] = {
   0x34, 0x1B, 0x00, 0x1D, 0x03
 };
 
-uint8_t lq_table[50]; // lqi table for each channel
+static const u8 BIND_CHANNEL = 49;
+static u8 calData[50][3];
+
+static uint8_t lq_table[50]; // lqi table for each channel
 
 class TwoWaySyncProtocol {
   public:
@@ -148,11 +149,11 @@ class TwoWaySyncProtocol {
         } else {
           delayMicroseconds(13000 - (micros() - lastReceive));  // delay until we reach 13000
         }
-        if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
+        if (receive(channCounter, 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           lastReceive -= 4700;  // delay 9ms if packet success fully received (13 - 9 = 4)
-          lq_table[curChannel] = stats.lqi;
+          lq_table[hop_channels[channCounter]] = stats.lqi;
           stats.packetLost = 0;
-          printlog(0, "%X.", hop_channels[curChannel]);
+          printlog(0, "%X.", hop_channels[channCounter]);
 //          transmit(hop_channels[curChannel], (uint8_t*)&stats);
         } else {
           ++stats.packetLost;
@@ -163,8 +164,8 @@ class TwoWaySyncProtocol {
         }
         return stats.packetLost == 0;
       } else if (state == RADIO_LOST) {
-        if (curChannel != 255) {
-          curChannel = 255;
+        if (channCounter != 255) {
+          channCounter = 255;
           resetSettings(0);
         }
         waitForSignal();
@@ -183,8 +184,8 @@ class TwoWaySyncProtocol {
 
   private:
     uint8_t fixed_id = 0;   // not init yet
-    uint8_t hop_channels[HOP_CH];
-    uint8_t curChannel = 255;   // 255 mean not successfully paired
+    uint8_t hop_channels[HOP_CH]; // store indexes for hop_data table
+    uint8_t channCounter = 255;   // 255 mean not successfully paired
     uint32_t lastReceive = 0;  // use micros for more accuracy
     uint8_t packet_buff[MAX_PKT];
     uint8_t state = 0;
@@ -198,10 +199,10 @@ class TwoWaySyncProtocol {
           memcpy(res.paired_channels, hop_channels, HOP_CH);
           transmit(BIND_CHANNEL, (uint8_t*)&res);
 
-          curChannel = 0;   // pairing success
+          channCounter = 0;   // pairing success
           state = TRANSMISSION;
 
-          CC2500_WriteReg(CC2500_0A_CHANNR, hop_channels[curChannel]);
+          set_start(channCounter);
         }
       }
     }
@@ -219,39 +220,35 @@ class TwoWaySyncProtocol {
 
       Serial.println("start pairing...");
 
-      int chanCounter = 50;  // hop_data len
+      int chanCounter = 49;  // hop_data len
       u8 chann = 0;
       u8 bestLqi = 0;
       u8 bestChann = 0;
       do {
         --chanCounter;
-        chann = pgm_read_byte_near(&hop_data[chanCounter]);
-        if (!receive(chann, 200000)) {
-          printlog(0, "failed at %d", chanCounter);
+        if (!receive(chanCounter, 200000)) {
+          printlog(0, "failed at %d", pgm_read_byte_near(&hop_data[chanCounter]));
           return;
         }
         
         lq_table[chanCounter] = stats.lqi;
-        if (lq_table[chanCounter] > bestLqi) bestChann = chann;
-        printlog(0, "%d lqi: %d", chann, lq_table[chanCounter]);
+        if (lq_table[chanCounter] > bestLqi) bestChann = chanCounter;
+        printlog(0, "%d lqi: %d", pgm_read_byte_near(&hop_data[chanCounter]), lq_table[chanCounter]);
       } while (chanCounter > 0);
 
       WelcomebackPkt fin;
       int okCount = 0;
-      for (u8 i = 0; i < 50; ++i) {
-        
-      }
       fin.paired_channels[0] = bestChann;
       for (uint8_t i = 1; i < HOP_CH; ++i) {    // TODO: use lqi to determine which is best channel
-        fin.paired_channels[i] = pgm_read_byte_near(&hop_data[i]);
+        fin.paired_channels[i] = i;
       }
 
       memcpy(hop_channels, fin.paired_channels, HOP_CH);
       for (u8 i = 0; i < 2; ++i) {
         _delay_us(2000);
-        transmit(chann, (uint8_t*)&fin);
+        transmit(chanCounter, (uint8_t*)&fin);
       }
-      curChannel = 0;   // pairing success
+      channCounter = 0;   // pairing success
       state = TRANSMISSION;
 
       // get ready for transmission state
@@ -259,17 +256,24 @@ class TwoWaySyncProtocol {
       Serial.println("start transmission");
 
       // wait for first packet to end pairing stage
-      while (!receive(hop_channels[curChannel], 700000));
+      while (!receive(channCounter, 700000));
       lastReceive = micros() - 4700;
     }
+
+    void set_start(u8 ch) {
+      u8 realCh = pgm_read_byte_near(&hop_data[ch]);
+      CC2500_Strobe(CC2500_SIDLE);
+//      CC2500_WriteReg(CC2500_23_FSCAL3, calData[ch][0]);
+//      CC2500_WriteReg(CC2500_24_FSCAL2, calData[ch][1]);
+//      CC2500_WriteReg(CC2500_25_FSCAL1, calData[ch][2]);
+      CC2500_WriteReg(CC2500_0A_CHANNR, realCh);
+    } 
 
     void transmit(uint8_t channel, uint8_t* buff) {
       buff[0] = FIXED_PKT_LEN;
       buff[1] = fixed_id; // auto append address
 
-      CC2500_Strobe(CC2500_SIDLE);  // exit RX mode
-      CC2500_WriteReg(CC2500_0A_CHANNR, channel);
-      CC2500_SetTxRxMode(TX_EN);
+      set_start(channel);
       CC2500_WriteData(buff, MAX_PKT);
       _delay_us(5000);  // wait for transmission complete
       CC2500_SetTxRxMode(TXRX_OFF);
@@ -279,8 +283,7 @@ class TwoWaySyncProtocol {
      * note: size of buffer must >= MAX_PKT
      */
     uint8_t receive(uint8_t channel, uint32_t timeout) { // timeout in microseconds
-      CC2500_Strobe(CC2500_SIDLE);  // exit TX mode
-      CC2500_WriteReg(CC2500_0A_CHANNR, channel);
+      set_start(channel);
       CC2500_SetTxRxMode(RX_EN);
       CC2500_Strobe(CC2500_SFRX);   // flush receive buffer
       CC2500_Strobe(CC2500_SRX);
@@ -325,7 +328,7 @@ class TwoWaySyncProtocol {
 
     void resetSettings(uint8_t bind) {
       CC2500_WriteReg(CC2500_17_MCSM1, 0x0C); //CCA_MODE = 0 (Always) / RXOFF_MODE = 11 (stay in RX)/ TXOFF_MODE = 0
-      CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x01 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
+      CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x00 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
       CC2500_WriteReg(CC2500_06_PKTLEN, FIXED_PKT_LEN); //PKTLEN=0x19 (25 bytes)
       CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x04); //PQT = 0  / CRC_AUTOFLUSH = 0 / APPEND_STATUS = 1 / ADR_CHK = 00 (no address check)
       CC2500_WriteReg(CC2500_08_PKTCTRL0, 0x01); //WHITE_DATA = 0 / PKT_FORMAT = 0 / CC2400_EN = 0 / CRC_EN = 0 / LENGTH_CONFIG = 01 (variable length)
@@ -359,9 +362,18 @@ class TwoWaySyncProtocol {
       CC2500_WriteReg(CC2500_03_FIFOTHR, 0x07);
       CC2500_WriteReg(CC2500_09_ADDR, 0x00);      // broadcast address
       CC2500_SetPower(bind ? CC2500_BIND_POWER : CC2500_HIGH_POWER);
-      CC2500_WriteReg(CC2500_0A_CHANNR, BIND_CHANNEL);
 
       CC2500_Strobe(CC2500_SIDLE);    // Go to idle...
+      //calibrate hop channels
+//      for (u8 c = 0; c < 49; c++) {
+//        CC2500_Strobe(CC2500_SIDLE);    
+//        CC2500_WriteReg(CC2500_0A_CHANNR, pgm_read_byte_near(&hop_data[c]));
+//        CC2500_Strobe(CC2500_SCAL);
+//        delayMicroseconds(900);
+//        calData[c][0] = CC2500_ReadReg(CC2500_23_FSCAL3);
+//        calData[c][1] = CC2500_ReadReg(CC2500_24_FSCAL2); 
+//        calData[c][2] = CC2500_ReadReg(CC2500_25_FSCAL1);
+//      }
     }
 };
 
