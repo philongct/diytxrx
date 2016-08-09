@@ -191,12 +191,12 @@ class TwoWaySyncProtocol {
     uint16_t error_pkts = 0;
 
     void waitForSignal() {
-      if (receive(BIND_CHANNEL, packet_buff, 12000)) {
+      if (receive(BIND_CHANNEL, packet_buff, 100000)) {
         HelloPkt* hi = (HelloPkt*)&packet_buff[0];
         if (hi->pkt_type == HELLO_PKT && hi->addr == fixed_id) {
           WelcomebackPkt res;
           memcpy(res.paired_channels, hop_channels, HOP_CH);
-          transmit(0, (uint8_t*)&res);
+          transmit(BIND_CHANNEL, (uint8_t*)&res);
 
           curChannel = 0;   // pairing success
           state = TRANSMISSION;
