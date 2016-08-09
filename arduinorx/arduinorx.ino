@@ -74,7 +74,7 @@ void loop() {
   rx.stats.battery1 = input.getCellVoltage(1);
   rx.stats.battery1 = input.getCellVoltage(2);
   if (loopCounter % 100 == 0) {
-    printlog(0, "rssi %d", rx.stats.rssi);
+    printlog(0, "lqi %d", rx.stats.lqi);
   }
   ++loopCounter;
 //  Serial.print("r ");
