@@ -73,6 +73,8 @@ const PROGMEM uint8_t hop_data[] = {
   0x34,	0x1B,	0x00,	0x1D,	0x03
 };
 
+const u32 TRANSMISSION_INTERVAL = 13000;
+
 class TwoWaySyncProtocol: public Protocol {
   public:
     // will be run when device startup
@@ -151,18 +153,25 @@ class TwoWaySyncProtocol: public Protocol {
        receiver interval if not receiving any packet: 13
        sender interval: 13
     */
-    void transmitAndReceive() {
-      if (curChannel == 255) return; // not ready to work
-      uint32_t begin = micros();
-      if (begin - lastTransmit >= 13000) {
-        lastTransmit = begin;
-        Serial.println(lastTransmit); // with this, we'll have interval ~13.5ms
-//        Serial.println(hop_channels[curChannel], HEX);
+    u32 transmitAndReceive() {
+      u32 begin = micros();
+      if (curChannel == 255) return 0; // not ready to work
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);      // 16 is channel data length (11 (bit)*11(channel) =
-//        receive(packet_buff, 9000);    // TODO: need fine tunning timeout
-//        curChannel = ++curChannel % HOP_CH;
-      }
+
+        u32 delayTime;
+        if (micros() < begin) { // timer roll over
+          delayTime = TRANSMISSION_INTERVAL - (4294967295 - begin + micros());
+        } else {
+          delayTime = TRANSMISSION_INTERVAL - (micros() - begin);
+        }
+        
+        if (delayTime > TRANSMISSION_INTERVAL) {
+          delayTime = 0;
+          Serial.println("time exceed");
+        }
+
+        return delayTime;
     }
 
     // set channel data
@@ -179,7 +188,6 @@ class TwoWaySyncProtocol: public Protocol {
     uint8_t fixed_id = GLOBAL_CFG.moduleId;
     uint8_t hop_channels[HOP_CH];
     uint8_t curChannel = 255;   // 255 mean not successfully paired
-    uint32_t lastTransmit = 0; // use micros for more accuracy
     int16_t channel_data[11];  // store up to 11 channels
     uint8_t packet_buff[MAX_PKT];
 

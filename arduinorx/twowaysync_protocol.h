@@ -137,30 +137,37 @@ class TwoWaySyncProtocol {
 
        return remaining interval to execute remaining works
     */
-    bool receiveData() {
+    bool receiveData(u32* delay) {
+      *delay = 0; // default
+      
       if (state == PAIRING) {
         pair();
       } else if (state == TRANSMISSION) {
-        if (micros() - lastReceive >= 13000) {
-//          curChannel = ++curChannel % HOP_CH;
-          lastReceive = micros();
-//          Serial.println(lastReceive);
-        } else {
-          delayMicroseconds(13000 - (micros() - lastReceive));  // delay until we reach 13000
-        }
+        u32 delayTime = 13000;
+        u32 begin = micros();
         if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
-          lastReceive -= 4700;  // delay 9ms if packet success fully received (13 - 9 = 4)
+          delayTime = 9000;  // delay 9ms if packet success fully received
           lq_table[curChannel] = stats.lqi;
           stats.packetLost = 0;
           printlog(0, "%X.", hop_channels[curChannel]);
-//          transmit(hop_channels[curChannel], (uint8_t*)&stats);
+          transmit(hop_channels[curChannel], (uint8_t*)&stats);
         } else {
           ++stats.packetLost;
-//          printlog(0, "%X!", hop_channels[curChannel]);
           if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
             state = RADIO_LOST;
           }
         }
+
+        if (micros() < begin) { // timer roll over
+          *delay = delayTime - (4294967295 - begin + micros());
+        } else {
+          *delay = delayTime - (micros() - begin);
+        }
+        if (*delay > delayTime) {
+          *delay = 0;
+          Serial.println("time exceed");
+        }
+        
         return stats.packetLost == 0;
       } else if (state == RADIO_LOST) {
         if (curChannel != 255) {
@@ -185,7 +192,6 @@ class TwoWaySyncProtocol {
     uint8_t fixed_id = 0;   // not init yet
     uint8_t hop_channels[HOP_CH];
     uint8_t curChannel = 255;   // 255 mean not successfully paired
-    uint32_t lastReceive = 0;  // use micros for more accuracy
     uint8_t packet_buff[MAX_PKT];
     uint8_t state = 0;
     uint16_t error_pkts = 0;
@@ -194,14 +200,13 @@ class TwoWaySyncProtocol {
       if (receive(BIND_CHANNEL, 100000)) {
         HelloPkt* hi = (HelloPkt*)&packet_buff[0];
         if (hi->pkt_type == HELLO_PKT && hi->addr == fixed_id) {
+          printlog(0, "resume");
           WelcomebackPkt res;
           memcpy(res.paired_channels, hop_channels, HOP_CH);
           transmit((uint8_t*)&res);
 
           curChannel = 0;   // pairing success
           state = TRANSMISSION;
-
-          CC2500_WriteReg(CC2500_0A_CHANNR, hop_channels[curChannel]);
         }
       }
     }
@@ -253,11 +258,11 @@ class TwoWaySyncProtocol {
 
       // get ready for transmission state
       resetSettings(0);
-      Serial.println("start transmission");
+      Serial.println("ready");
 
       // wait for first packet to end pairing stage
       while (!receive(hop_channels[curChannel], 700000));
-      lastReceive = micros() - 4700;
+      Serial.println("start transmission");
     }
 
     void transmit(uint8_t* buff) {

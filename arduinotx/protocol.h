@@ -255,7 +255,7 @@ class Protocol {
     virtual bool init() = 0;
 
     // transmit & receive process
-    virtual void transmitAndReceive() = 0;
+    virtual u32 transmitAndReceive() = 0;
 
     virtual void setChannelValue(uint8_t channel, uint16_t value) = 0;
 };

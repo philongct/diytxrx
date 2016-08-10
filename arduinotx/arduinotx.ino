@@ -38,6 +38,10 @@ Input input(&notifier);
 
 TwoWaySyncProtocol cur_protocol;
 
+// delaytime returned from protocol:
+// the protocol expect to delay n microseconds after next call
+u32 delayTime = 0;
+
 void setup() {
   printf_begin();
   printlog(1, "Initiallizing...");
@@ -61,6 +65,7 @@ void setup() {
   GLOBAL_CFG.show(1);
 
   initIoPins();
+  initTimer1();
 
   if (cur_protocol.init()) {
     while(!cur_protocol.pair()) {
@@ -69,10 +74,20 @@ void setup() {
   }
 }
 
+void initTimer1() {
+  // initialize timer1
+  noInterrupts();           // disable all interrupts
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1  = 0;
+
+  TCCR1B |= (1 << CS11);    // 8 prescaler (0.5 uS Time per counter tick)
+  interrupts();
+}
+
 // the loop routine runs over and over again forever:
 void loop() {
   batteryCheck();
-  notifier.loop();
 
   runLoop();
 }
@@ -114,11 +129,15 @@ void runLoop() {
     cur_protocol.setChannelValue(6, input.aux[0]);
     cur_protocol.setChannelValue(7, input.aux[1]);
     cur_protocol.setChannelValue(8, input.aux[2]);
-
-    changed = true;
   }
 
-  cur_protocol.transmitAndReceive();
+  notifier.loop();
+
+  while ((u32)TCNT1 * 2 < delayTime) {
+    notifier.loop();
+  }
+  delayTime = cur_protocol.transmitAndReceive();
+  TCNT1 = 0;    // reset counter
 }
 
 
