@@ -113,7 +113,7 @@ class TwoWaySyncProtocol {
             fixed_id = hello->addr;
             for (int i = 0; i < 5; ++i) {
               _delay_us(2000);
-              transmit(BIND_CHANNEL, (uint8_t*)hello);
+              transmit((uint8_t*)hello);
             }
             state = PAIRING;
           } else {
@@ -196,7 +196,7 @@ class TwoWaySyncProtocol {
         if (hi->pkt_type == HELLO_PKT && hi->addr == fixed_id) {
           WelcomebackPkt res;
           memcpy(res.paired_channels, hop_channels, HOP_CH);
-          transmit(BIND_CHANNEL, (uint8_t*)&res);
+          transmit((uint8_t*)&res);
 
           curChannel = 0;   // pairing success
           state = TRANSMISSION;
@@ -238,9 +238,6 @@ class TwoWaySyncProtocol {
 
       WelcomebackPkt fin;
       int okCount = 0;
-      for (u8 i = 0; i < 50; ++i) {
-        
-      }
       fin.paired_channels[0] = bestChann;
       for (uint8_t i = 1; i < HOP_CH; ++i) {    // TODO: use lqi to determine which is best channel
         fin.paired_channels[i] = pgm_read_byte_near(&hop_data[i]);
@@ -249,7 +246,7 @@ class TwoWaySyncProtocol {
       memcpy(hop_channels, fin.paired_channels, HOP_CH);
       for (u8 i = 0; i < 2; ++i) {
         _delay_us(2000);
-        transmit(chann, (uint8_t*)&fin);
+        transmit((uint8_t*)&fin);
       }
       curChannel = 0;   // pairing success
       state = TRANSMISSION;
@@ -263,12 +260,12 @@ class TwoWaySyncProtocol {
       lastReceive = micros() - 4700;
     }
 
-    void transmit(uint8_t channel, uint8_t* buff) {
+    void transmit(uint8_t* buff) {
       buff[0] = FIXED_PKT_LEN;
       buff[1] = fixed_id; // auto append address
 
       CC2500_Strobe(CC2500_SIDLE);  // exit RX mode
-      CC2500_WriteReg(CC2500_0A_CHANNR, channel);
+//      CC2500_WriteReg(CC2500_0A_CHANNR, channel);
       CC2500_SetTxRxMode(TX_EN);
       CC2500_WriteData(buff, MAX_PKT);
       _delay_us(5000);  // wait for transmission complete
@@ -288,7 +285,7 @@ class TwoWaySyncProtocol {
       uint32_t time_start = micros();
       uint32_t time_exec = 0;
       do {
-        _delay_us(1000);
+        _delay_us(500);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
         // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
         if (len && len <= FIXED_PKT_LEN) {
