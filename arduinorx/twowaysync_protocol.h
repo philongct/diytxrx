@@ -137,37 +137,39 @@ class TwoWaySyncProtocol {
 
        return remaining interval to execute remaining works
     */
-    bool receiveData(u32* delay) {
+    bool receiveData(int32_t* delay) {
       *delay = 0; // default
       
       if (state == PAIRING) {
         pair();
       } else if (state == TRANSMISSION) {
-        u32 delayTime = 13000;
-        u32 begin = micros();
-        if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
-          delayTime = 9000;  // delay 9ms if packet success fully received
-          lq_table[curChannel] = stats.lqi;
-          stats.packetLost = 0;
-          printlog(0, "%X.", hop_channels[curChannel]);
-          transmit(hop_channels[curChannel], (uint8_t*)&stats);
-        } else {
-          ++stats.packetLost;
-          if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
-            state = RADIO_LOST;
+        u32 delayTime = 15000;
+        do {
+          u32 begin = micros();
+          if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
+            delayTime = 11000;  // delay 9ms if packet success fully received
+            lq_table[curChannel] = stats.lqi;
+            stats.packetLost = 0;
+            printlog(0, "%X.", hop_channels[curChannel]);
+  //          transmit((uint8_t*)&stats);
+          } else {
+            ++stats.packetLost;
+            if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
+              state = RADIO_LOST;
+            }
           }
-        }
-
-        if (micros() < begin) { // timer roll over
-          *delay = delayTime - (4294967295 - begin + micros());
-        } else {
-          *delay = delayTime - (micros() - begin);
-        }
-        if (*delay > delayTime) {
-          *delay = 0;
-          Serial.println("time exceed");
-        }
-        
+  
+          if (micros() < begin) { // timer roll over
+            *delay = delayTime - (4294967295 - begin + micros());
+          } else {
+            *delay = delayTime - (micros() - begin);
+          }
+          Serial.println(*delay);
+          if (*delay > delayTime) {
+            Serial.println("time exceed");
+          }
+          curChannel = ++curChannel % HOP_CH;
+        } while(*delay > delayTime);
         return stats.packetLost == 0;
       } else if (state == RADIO_LOST) {
         if (curChannel != 255) {
@@ -261,8 +263,8 @@ class TwoWaySyncProtocol {
       Serial.println("ready");
 
       // wait for first packet to end pairing stage
-      while (!receive(hop_channels[curChannel], 700000));
-      Serial.println("start transmission");
+//      while (!receive(hop_channels[curChannel], 700000));
+//      Serial.println("start transmission");
     }
 
     void transmit(uint8_t* buff) {

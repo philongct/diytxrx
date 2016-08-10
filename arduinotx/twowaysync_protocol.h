@@ -73,7 +73,7 @@ const PROGMEM uint8_t hop_data[] = {
   0x34,	0x1B,	0x00,	0x1D,	0x03
 };
 
-const u32 TRANSMISSION_INTERVAL = 13000;
+const u32 TRANSMISSION_INTERVAL = 15000;
 
 class TwoWaySyncProtocol: public Protocol {
   public:
@@ -171,6 +171,7 @@ class TwoWaySyncProtocol: public Protocol {
           Serial.println("time exceed");
         }
 
+        curChannel = ++curChannel % HOP_CH;
         return delayTime;
     }
 
