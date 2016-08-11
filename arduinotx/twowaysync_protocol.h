@@ -296,7 +296,7 @@ class TwoWaySyncProtocol: public Protocol {
       CC2500_WriteReg(CC2500_2E_TEST0, 0x0b); //0x0B (Same as specified in datasheet and by SmartRF sw)
       CC2500_WriteReg(CC2500_03_FIFOTHR, 0x07);
       CC2500_WriteReg(CC2500_09_ADDR, 0x00);      // broadcast address
-      CC2500_SetPower(bind ? CC2500_BIND_POWER : CC2500_HIGH_POWER);
+      CC2500_SetPower(bind ? CC2500_BIND_POWER : CC2500_MAX_POWER);
       CC2500_WriteReg(CC2500_0A_CHANNR, BIND_CHANNEL);
 
       CC2500_Strobe(CC2500_SIDLE);    // Go to idle...
