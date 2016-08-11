@@ -65,24 +65,12 @@ void setup() {
   GLOBAL_CFG.show(1);
 
   initIoPins();
-  initTimer1();
 
   if (cur_protocol.init()) {
     while(!cur_protocol.pair()) {
       delay(1000);
     }
   }
-}
-
-void initTimer1() {
-  // initialize timer1
-  noInterrupts();           // disable all interrupts
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCNT1  = 0;
-
-  TCCR1B |= (1 << CS11);    // 8 prescaler (0.5 uS Time per counter tick)
-  interrupts();
 }
 
 // the loop routine runs over and over again forever:
@@ -133,11 +121,8 @@ void runLoop() {
 
   notifier.loop();
 
-  while ((u32)TCNT1 * 2 < delayTime) {
-    notifier.loop();
-  }
+  while (micros() < delayTime); // busy wait
   delayTime = cur_protocol.transmitAndReceive();
-  TCNT1 = 0;    // reset counter
 }
 
 

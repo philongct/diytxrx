@@ -50,28 +50,13 @@ void setup(){
   invertedConn.begin(SBUS_BAUDRATE);
   input.begin();
 
-  initTimer1();
-
   rx.init();
-}
-
-void initTimer1() {
-  // initialize timer1
-  noInterrupts();           // disable all interrupts
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCNT1  = 0;
-
-  TCCR1B |= (1 << CS11);    // 8 prescaler (0.5 uS Time per counter tick)
-  interrupts();
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
-  while((u32)TCNT1 * 2 < delayTime && delayTime != 0); // busy wait
-  
+  while(micros() < delayTime); // busy wait
   bool received = rx.receiveData(&delayTime);
-  TCNT1 = 0;
   if (received) {
     rx.buildSbusPacket(sbusPacket);
   }
@@ -87,9 +72,6 @@ void loop() {
   if (loopCounter++ % 100 == 0) {
     printlog(0, "--> lqi %d", rx.stats.lqi);
   }
-
-//  Serial.print("r ");
-//  Serial.println(TCNT1);
 }
 
 void sbusLostSignal(uint8_t *sbusPacket) {

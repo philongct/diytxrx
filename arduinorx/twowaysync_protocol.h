@@ -139,41 +139,48 @@ class TwoWaySyncProtocol {
     */
     bool receiveData(int32_t* delay) {
       *delay = 0; // default
-      
+
       if (state == PAIRING) {
-        pair();
-      } else if (state == TRANSMISSION) {
-        u32 delayTime = 16000;
-        do {
-          u32 begin = micros();
-          if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
-            delayTime = 14000;  // delay 9ms if packet success fully received
-            lq_table[curChannel] = stats.lqi;
-            stats.packetLost = 0;
-            printlog(0, "%X.", hop_channels[curChannel]);
-  //          transmit((uint8_t*)&stats);
-          } else {
-            ++stats.packetLost;
-            if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
-              state = RADIO_LOST;
-            }
-          }
-  
-          if (micros() < begin) { // timer roll over
-            *delay = delayTime - (4294967295 - begin + micros());
-          } else {
-            *delay = delayTime - (micros() - begin);
-          }
-          // the whole process take about 8.3ms
-//          Serial.println(micros() - begin);
-          if (*delay > delayTime) {
-            Serial.println("time exceed");
-          }
+        if (pair()) {
+          // wait for first packet to end pairing stage
+          while (!receive(hop_channels[curChannel], 1000000));
           curChannel = ++curChannel % HOP_CH;
-        } while(*delay > delayTime);
+          // should add a little delay here
+//          *delay = micros() + 6000;
+          Serial.println("start transmission");
+        }
+      } else if (state == TRANSMISSION) {
+        u32 begin = micros();  // start time frame
+        u32 delayTime = 14000; // delay 14ms each cycle. Actual value measured is about 14004us
+        Serial.println(begin);
+        if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
+          begin = lastReceived;   // update time frame using packet receiving timestamp.
+                                  // This process take about 6ms if success
+          delayTime = 6500;       // Delay total ~13ms if received package.
+                                  // Actual value measured is about ~13752 - 14520us (because of other delaying in sbus...)
+          
+          lq_table[curChannel] = stats.lqi;
+          stats.packetLost = 0;
+          
+          Serial.print(hop_channels[curChannel], HEX);Serial.println(".");
+//        transmit((uint8_t*)&stats);
+        } else {
+//          Serial.println(hop_channels[curChannel], HEX);
+          ++stats.packetLost;
+          if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
+            state = RADIO_LOST;
+          }
+        }
+
+        curChannel = ++curChannel % HOP_CH;
+        // the whole process take about 8.3ms
+
+        *delay = begin + delayTime;
+        
         return stats.packetLost == 0;
       } else if (state == RADIO_LOST) {
         if (curChannel != 255) {
+          Serial.println("lost");
           curChannel = 255;
           resetSettings(0);
         }
@@ -195,7 +202,8 @@ class TwoWaySyncProtocol {
     uint8_t fixed_id = 0;   // not init yet
     uint8_t hop_channels[HOP_CH];
     uint8_t curChannel = 255;   // 255 mean not successfully paired
-    uint8_t packet_buff[MAX_PKT];
+    uint8_t packet_buff[MAX_PKT];   // received data is stored here
+    u32 lastReceived;        // last time packet was received
     uint8_t state = 0;
     uint16_t error_pkts = 0;
 
@@ -214,7 +222,7 @@ class TwoWaySyncProtocol {
       }
     }
 
-    void pair() {
+    bool pair() {
       Serial.println("listen to pair...");
       resetSettings(1);
 
@@ -222,7 +230,7 @@ class TwoWaySyncProtocol {
 
       PairStartPkt* res = (PairStartPkt*)&packet_buff[0];
       if (res->pkt_type != PAIR_PKT || res->addr != fixed_id) {
-        return;
+        return false;
       }
 
       Serial.println("start pairing...");
@@ -236,9 +244,9 @@ class TwoWaySyncProtocol {
         chann = pgm_read_byte_near(&hop_data[chanCounter]);
         if (!receive(chann, 200000)) {
           printlog(0, "failed at %d", chanCounter);
-          return;
+          return false;
         }
-        
+
         lq_table[chanCounter] = stats.lqi;
         if (lq_table[chanCounter] > bestLqi) bestChann = chann;
         printlog(0, "%d lqi: %d", chann, lq_table[chanCounter]);
@@ -262,12 +270,7 @@ class TwoWaySyncProtocol {
       // get ready for transmission state
       resetSettings(0);
       Serial.println("ready");
-
-      // wait for first packet to end pairing stage
-      while (!receive(hop_channels[curChannel], 700000));
-      delayMicroseconds(9000);
-      curChannel = ++curChannel % HOP_CH;
-      Serial.println("start transmission");
+      return true;
     }
 
     void transmit(uint8_t* buff) {
@@ -282,9 +285,6 @@ class TwoWaySyncProtocol {
       CC2500_SetTxRxMode(TXRX_OFF);
     }
 
-    /*
-     * note: size of buffer must >= MAX_PKT
-     */
     uint8_t receive(uint8_t channel, uint32_t timeout) { // timeout in microseconds
       CC2500_Strobe(CC2500_SIDLE);  // exit TX mode
       CC2500_WriteReg(CC2500_0A_CHANNR, channel);
@@ -300,6 +300,8 @@ class TwoWaySyncProtocol {
         // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
         if (len && len <= FIXED_PKT_LEN) {
           CC2500_ReadData(packet_buff, MAX_PKT);
+          lastReceived = micros();
+
           stats.lqi = packet_buff[MAX_PKT - 1];
           CC2500_SetTxRxMode(TXRX_OFF);
           CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
@@ -322,7 +324,7 @@ class TwoWaySyncProtocol {
 //      if (rssi_dec >= 128) {
 //        return -1*(((int16_t)rssi_dec - 256) / 2 - 71);  // 71 is rssi offset
 //      } else {
-//        return -1*((int16_t)rssi_dec / 2 - 71); 
+//        return -1*((int16_t)rssi_dec / 2 - 71);
 //      }
 //    }
 

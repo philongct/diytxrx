@@ -73,7 +73,8 @@ const PROGMEM uint8_t hop_data[] = {
   0x34,	0x1B,	0x00,	0x1D,	0x03
 };
 
-const u32 TRANSMISSION_INTERVAL = 17000;
+// interval between transmits. Inspired by SBUS interval
+const u32 TRANSMISSION_INTERVAL = 14000;  // Actual value measured is ~14008us
 
 class TwoWaySyncProtocol: public Protocol {
   public:
@@ -157,25 +158,15 @@ class TwoWaySyncProtocol: public Protocol {
       u32 begin = micros();
       if (curChannel == 255) return 0; // not ready to work
 
-//      if (curChannel % 5 != 0){
+      Serial.println(begin);
+//      if (begin < 30000000 || begin > 50000000 || curChannel == 1){
+//        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
-        transmit(hop_channels[curChannel], packet_buff);      // 16 is channel data length (11 (bit)*11(channel) =
+        transmit(hop_channels[curChannel], packet_buff);
 //      }
 
-        u32 delayTime;
-        if (micros() < begin) { // timer roll over
-          delayTime = TRANSMISSION_INTERVAL - (4294967295 - begin + micros());
-        } else {
-          delayTime = TRANSMISSION_INTERVAL - (micros() - begin);
-        }
-        
-        if (delayTime > TRANSMISSION_INTERVAL) {
-          delayTime = 0;
-          Serial.println("time exceed");
-        }
-
-        curChannel = ++curChannel % HOP_CH;
-        return delayTime;
+      curChannel = ++curChannel % HOP_CH;
+      return begin + TRANSMISSION_INTERVAL;
     }
 
     // set channel data
