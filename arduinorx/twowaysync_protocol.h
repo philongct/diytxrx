@@ -143,11 +143,11 @@ class TwoWaySyncProtocol {
       if (state == PAIRING) {
         pair();
       } else if (state == TRANSMISSION) {
-        u32 delayTime = 15000;
+        u32 delayTime = 16000;
         do {
           u32 begin = micros();
           if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
-            delayTime = 11000;  // delay 9ms if packet success fully received
+            delayTime = 14000;  // delay 9ms if packet success fully received
             lq_table[curChannel] = stats.lqi;
             stats.packetLost = 0;
             printlog(0, "%X.", hop_channels[curChannel]);
@@ -164,7 +164,8 @@ class TwoWaySyncProtocol {
           } else {
             *delay = delayTime - (micros() - begin);
           }
-          Serial.println(*delay);
+          // the whole process take about 8.3ms
+//          Serial.println(micros() - begin);
           if (*delay > delayTime) {
             Serial.println("time exceed");
           }
@@ -263,8 +264,10 @@ class TwoWaySyncProtocol {
       Serial.println("ready");
 
       // wait for first packet to end pairing stage
-//      while (!receive(hop_channels[curChannel], 700000));
-//      Serial.println("start transmission");
+      while (!receive(hop_channels[curChannel], 700000));
+      delayMicroseconds(9000);
+      curChannel = ++curChannel % HOP_CH;
+      Serial.println("start transmission");
     }
 
     void transmit(uint8_t* buff) {
