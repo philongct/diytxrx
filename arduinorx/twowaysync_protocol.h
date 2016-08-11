@@ -144,9 +144,12 @@ class TwoWaySyncProtocol {
         if (pair()) {
           // wait for first packet to end pairing stage
           while (!receive(hop_channels[curChannel], 1000000));
+          if (packet_buff[2] != DATA_PKT || packet_buff[1] != fixed_id) {
+            state = RADIO_LOST;
+            return false;
+          }
           curChannel = ++curChannel % HOP_CH;
-          // should add a little delay here
-//          *delay = micros() + 6000;
+          *delay = micros() + 6000;
           Serial.println("start transmission");
         }
       } else if (state == TRANSMISSION) {
@@ -173,8 +176,6 @@ class TwoWaySyncProtocol {
         }
 
         curChannel = ++curChannel % HOP_CH;
-        // the whole process take about 8.3ms
-
         *delay = begin + delayTime;
         
         return stats.packetLost == 0;
