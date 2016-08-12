@@ -61,10 +61,7 @@ void loop() {
     rx.buildSbusPacket(sbusPacket);
   }
 
-  if (rx.isRadioLost() && input.getfailSafeEnabled()) {
-    sbusLostSignal(sbusPacket);
-  }
-
+  sbusLostSignal(sbusPacket);
   sbusWrite(sbusPacket);
 
   rx.stats.battery1 = input.getCellVoltage(1);
@@ -75,7 +72,10 @@ void loop() {
 }
 
 void sbusLostSignal(uint8_t *sbusPacket) {
-  sbusPacket[23] |= (1<<2);
+  sbusPacket[23] = 0;
+  if (rx.isRadioLost() && input.getfailSafeEnabled()) {
+    sbusPacket[23] |= (1<<2);
+  }
 }
 
 // SBUS interval is 14ms. Current implementation already creates 14ms interval
