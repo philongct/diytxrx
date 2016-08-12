@@ -47,8 +47,11 @@ class Input {
       return digitalRead(FLIGH_SAFE_PIN);
     }
 
-    uint8_t getCellVoltage(uint8_t cellNum) {
-      return analogRead(CELLS[cellNum - 1])/4;
+    uint16_t getCellVoltage(uint8_t cellNum) {
+      u16 val = analogRead(CELLS[cellNum - 1]);
+      if (val < 610) val = 800;   // 610 ~ 2.9v --> voltage never go bellow this value
+
+      return val;
     }
 };
 

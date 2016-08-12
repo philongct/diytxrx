@@ -41,7 +41,6 @@ TwoWaySyncProtocol rx;
 uint8_t sbusPacket[SBUS_DATA_LEN] = {   // 11 channels available
   0x0f,0x01,0x04,0x20,0x00,0xff,0x07,0x40,0x00,0x02,0x10,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
-u32 loopCounter = 0;
 int32_t delayTime;
 
 void setup(){
@@ -56,8 +55,7 @@ void setup(){
 // the loop routine runs over and over again forever:
 void loop() {
   while(micros() < delayTime); // busy wait
-  bool received = rx.receiveData(&delayTime);
-  if (received) {
+  if (rx.receiveData(&delayTime)) {
     rx.buildSbusPacket(sbusPacket);
   }
 
@@ -65,8 +63,9 @@ void loop() {
   sbusWrite(sbusPacket);
 
   rx.stats.battery1 = input.getCellVoltage(1);
-  rx.stats.battery1 = input.getCellVoltage(2);
-  if (loopCounter++ % 100 == 0) {
+  rx.stats.battery2 = input.getCellVoltage(2);
+  // increase cycleCount
+  if (rx.stats.cycleCount++ % 100 == 0) {
     printlog(0, "--> lqi %d", rx.stats.lqi);
   }
 }

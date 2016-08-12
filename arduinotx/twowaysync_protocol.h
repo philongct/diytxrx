@@ -21,6 +21,7 @@
 #define TEST_PKT          252
 #define PAIR_PKT          251
 #define DATA_PKT          11
+#define TELE_PKT          12
 
 typedef struct HelloPkt {
   uint8_t len = sizeof(HelloPkt);
@@ -60,6 +61,20 @@ typedef struct DataPkt {
   uint8_t padding[FIXED_PKT_LEN - 16 - 3]; // remaining bytes to fixed packet length
 } DataPkt;
 
+typedef struct ReceiverStatusPkt {
+  uint8_t len = sizeof(ReceiverStatusPkt);
+  uint8_t addr;
+  uint8_t pkt_type = TELE_PKT;
+  uint8_t packetLost = 0;
+  uint8_t lqi = 0;
+  uint16_t battery1 = 800;
+  uint16_t battery2 = 800;
+  uint16_t cycleCount = 0;
+  uint16_t error_pkts = 0;        // count number of error packets
+  u32 teleLastReceived;               // last timestamp telemetry packet was received at tx
+  uint8_t padding[FIXED_PKT_LEN - 17]; // remaining bytes to fit FIXED_PKT_LEN
+} ReceiverStatusPkt;
+
 const PROGMEM uint8_t hop_data[] = {
   0x05, 0xD5, 0xBC, 0xA3, 0x8A,
   0x71, 0x58, 0x3F, 0x26, 0x0D,
@@ -78,6 +93,8 @@ const u32 TRANSMISSION_INTERVAL = 14000;  // Actual value measured is ~14008us
 
 class TwoWaySyncProtocol: public Protocol {
   public:
+    ReceiverStatusPkt receiverStatus;   // stored receiver status (via telemetry)
+
     // will be run when device startup
     bool init() {
       CC2500_Reset();
@@ -143,30 +160,42 @@ class TwoWaySyncProtocol: public Protocol {
     }
 
     /**
-       transmit & receive process using channel hopping:
-
-                1            2             3             4             5             6             7             8
-       receiver |--rws-------|---rws-------|---rws-------|-----------w-|-----------w-|------------w|---rws-------|------
-       sender   |ss---r-------|ss-----r-----|ss----xxxxxx-|ss-----------|ss-----------|ss-----------|ss---r-------|ss----
-                1               2             3             4             5             6             7             8
-
-       receiver interval after receiving packet: 9
-       receiver interval if not receiving any packet: 13
-       sender interval: 13
-    */
+     * transmit & receive using channel hopping:
+     *
+     *  channel  1            2             3             4             5             6             7             8
+     *  receiver |--rs-----w-|---rs------w-|---rs------w-|-----------w-|-----------w-|-----------w-|---rs------w-|------
+     *  sender   |ss------r----|ss-----r-----|ss----xxxxxx-|ss-----------|ss-----------|ss-----------|ss-------r---|ss----
+     *  channel  1              2             3             4             5             6             7             8
+     */
     u32 transmitAndReceive() {
-      u32 begin = micros();
+      u32 startFrame = micros();    // mark new frame
       if (curChannel == 255) return 0; // not ready to work
 
-      Serial.println(begin);
-//      if (begin < 30000000 || begin > 50000000 || curChannel == 1){
+      Serial.println(startFrame);
+//      if (startFrame < 30000000 || startFrame > 40000000 || curChannel == 1){
 //        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);
 //      }
 
+      if (curChannel == 1) {
+        // telemetry packet is 9 bytes length
+        if (receive(packet_buff, 6000, 9) && packet_buff[1] == fixed_id && packet_buff[2] == TELE_PKT) {
+          memcpy(&receiverStatus, packet_buff, sizeof(ReceiverStatusPkt));
+          receiverStatus.teleLastReceived = startFrame;
+//          Serial.println(micros() - startFrame);
+//          Serial.println(receiverStatus.battery2);
+//          Serial.println(receiverStatus.lqi);
+//          Serial.println(receiverStatus.packetLost);
+        }
+
+        // the receiving of telemetry take extra ~7ms
+        // so we increase timeframe to 21ms (14+7 = 21)
+        startFrame += 7000;
+      }
+
       curChannel = ++curChannel % HOP_CH;
-      return begin + TRANSMISSION_INTERVAL;
+      return startFrame + TRANSMISSION_INTERVAL;
     }
 
     // set channel data
@@ -179,12 +208,11 @@ class TwoWaySyncProtocol: public Protocol {
     }
 
   private:
-    u16 count = 0;
     uint8_t fixed_id = GLOBAL_CFG.moduleId;
     uint8_t hop_channels[HOP_CH];
     uint8_t curChannel = 255;   // 255 mean not successfully paired
     int16_t channel_data[11];  // store up to 11 channels
-    uint8_t packet_buff[MAX_PKT];
+    uint8_t packet_buff[MAX_PKT];   // buffer for building/storing temporary packet
 
     void transmit(uint8_t channel, uint8_t* buff) {
       CC2500_Strobe(CC2500_SIDLE);  // exit RX mode
@@ -193,14 +221,15 @@ class TwoWaySyncProtocol: public Protocol {
       
       buff[0] = FIXED_PKT_LEN;
       buff[1] = fixed_id; // auto append address
-      buff[FIXED_PKT_LEN - 1] = ~buff[3]; // lazy packet check. TODO: put crc here
-      
-      CC2500_WriteData(buff, FIXED_PKT_LEN);
+      buff[FIXED_PKT_LEN - 1] = ~buff[3]; // lazy packet integrity check. TODO: put crc here
+
+      CC2500_WriteData(buff, FIXED_PKT_LEN);  // write 25 bytes data took ~5ms
       _delay_us(5000);  // wait for transmission complete
       CC2500_SetTxRxMode(TXRX_OFF);
     }
 
-    uint8_t receive(uint8_t* buffer, uint32_t timeout) { // microseconds
+    // timeout in microseconds
+    uint8_t receive(uint8_t* buffer, uint32_t timeout, u8 pktLen = FIXED_PKT_LEN) {
       CC2500_Strobe(CC2500_SIDLE);  // init (not sure)
       CC2500_SetTxRxMode(RX_EN);    // set GDO0/GDO2 depend on tx or rx mode
       CC2500_Strobe(CC2500_SFRX);   // flush receive buffer
@@ -212,8 +241,9 @@ class TwoWaySyncProtocol: public Protocol {
         _delay_us(1000);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
         if (len && len <= FIXED_PKT_LEN) {
-          CC2500_ReadData(buffer, FIXED_PKT_LEN);
+          CC2500_ReadData(buffer, pktLen);  // read 25 bytes data took ~5ms
           CC2500_SetTxRxMode(TXRX_OFF);
+
           return len;
         }
         time_exec = micros() - time_start;
@@ -230,11 +260,11 @@ class TwoWaySyncProtocol: public Protocol {
       sbus_data_pkt[1] = fixed_id;
       sbus_data_pkt[2] = DATA_PKT;
 
-      uint8_t i;
-      // clear received channel data
-      for (i = 0; i < 16; i++) {    //16 = SBUS WORD * number of channels(11)
-        sbus_data_pkt[i + offset] = 0;
-      }
+//      uint8_t i;
+//      // clear received channel data
+//      for (i = 0; i < 16; i++) {    //16 = SBUS WORD * number of channels(11)
+//        sbus_data_pkt[i + offset] = 0;
+//      }
 
       // reset counters
       uint8_t ch = 0;
@@ -243,7 +273,7 @@ class TwoWaySyncProtocol: public Protocol {
       uint8_t bit_in_sbus = 0;
 
       // store servo data
-      for (i = 0; i < 121; i++) { // 121 = SBUS Word * number of channels
+      for (u8 i = 0; i < 121; i++) { // 121 = SBUS Word * number of channels
         if (channel_data[ch] & (1 << bit_in_channel)) {
           sbus_data_pkt[byte_in_sbus] |= (1 << bit_in_sbus);
         }
@@ -253,6 +283,7 @@ class TwoWaySyncProtocol: public Protocol {
         if (bit_in_sbus == 8) {
           bit_in_sbus = 0;
           byte_in_sbus++;
+          sbus_data_pkt[byte_in_sbus] = 0;
         }
         if (bit_in_channel == 11) {
           bit_in_channel = 0;
@@ -262,7 +293,7 @@ class TwoWaySyncProtocol: public Protocol {
     }
 
     void resetSettings(uint8_t bind) {
-      CC2500_WriteReg(CC2500_17_MCSM1, 0x0C); //CCA_MODE = 0 (Always) / RXOFF_MODE = 0 / TXOFF_MODE = 0 (automatically switch to IDLE)
+      CC2500_WriteReg(CC2500_17_MCSM1, 0x00); //CCA_MODE = 0 (Always) / RXOFF_MODE = 0 / TXOFF_MODE = 0 (automatically switch to IDLE)
       CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x01 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
       CC2500_WriteReg(CC2500_06_PKTLEN, FIXED_PKT_LEN); //PKTLEN=0x19 (25 bytes)
       CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x04); //PQT = 0  / CRC_AUTOFLUSH = 0 / APPEND_STATUS = 1 / ADR_CHK = 00 (Address check 0x00 broadcast)
@@ -274,7 +305,7 @@ class TwoWaySyncProtocol: public Protocol {
       CC2500_WriteReg(CC2500_0E_FREQ1, 0x76);
       CC2500_WriteReg(CC2500_0F_FREQ0, 0x27); //FREQ = 0x5C7627 (F = 2404MHz)
       CC2500_WriteReg(CC2500_10_MDMCFG4, 0x7B); //CHANBW_E = 1 / CHANBW_M = 3 / BW = 232.143kHz / DRATE_E = 0x0B
-      CC2500_WriteReg(CC2500_11_MDMCFG3, 0x52); //DRATE_M = 0x61 Bitrate = 67047.11914 bps
+      CC2500_WriteReg(CC2500_11_MDMCFG3, 0x51); //DRATE_M = 0x61 Bitrate = 67047.11914 bps
       CC2500_WriteReg(CC2500_12_MDMCFG2, 0x13); //MOD_FORMAT = 0x01 (GFSK) / SYNC_MODE = 3 (30/32 sync word bits detected)
       CC2500_WriteReg(CC2500_13_MDMCFG1, 0x23); //FEC_EN = Disable / NUM_PREAMBLE = 0x02 (4 bytes) / CHANSPC_E = 0x03
       CC2500_WriteReg(CC2500_14_MDMCFG0, 0x7a); //CHANSPC_M = 0x7A Channel Spacing = 299927Hz

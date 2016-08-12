@@ -3,6 +3,9 @@
 
 #include "logger.h"
 
+#define ON    LOW
+#define OFF   HIGH
+
 class LED {
   public:
     LED(uint8_t pinNumber) {
@@ -12,7 +15,7 @@ class LED {
     void changePin(uint8_t pinNumber) {
       if ( pin != pinNumber) {
         pinMode(pin, OUTPUT);
-        digitalWrite(pin, HIGH);  // turn off
+        digitalWrite(pin, OFF);  // turn off
         
         pin = pinNumber;
         pinMode(pin, OUTPUT);
@@ -25,21 +28,21 @@ class LED {
       if (flashCount == 1 && millis() - lastUpdate > 1000) {
         flashCount = 0;
       } else if ( flashCount > 1) {
-        if (state == HIGH && millis() - lastUpdate > 500) {
-          state = LOW;
+        if (state == OFF && millis() - lastUpdate > 500) {
+          state = ON;
           lastUpdate = millis();
-        } else if (state == LOW && millis() - lastUpdate > 200) {
-          state = HIGH;
+        } else if (state == ON && millis() - lastUpdate > 200) {
+          state = OFF;
           lastUpdate = millis();
           --flashCount;
         }
       } else if (flashCount == 0) {
-        if ( state == HIGH && millis() - lastUpdate > onPeriod * 10 ) {
-          state = LOW;
+        if ( onPeriod == 0 || (state == ON && millis() - lastUpdate > offPeriod)) {
+          state = OFF;
           lastUpdate = millis();
           printlog(4, "LED OFF");
-        } else if ( state ==  LOW && millis() - lastUpdate > offPeriod * 10) {
-          state = HIGH;
+        } else if ( state == OFF && millis() - lastUpdate > onPeriod ) {
+          state = ON;
           lastUpdate = millis();
           printlog(4, "LED ON");
         }
@@ -48,15 +51,21 @@ class LED {
       digitalWrite(pin, state);
     }
 
-    void blink(uint8_t onInterval, uint8_t offInterval) {
-      onPeriod = onInterval;
-      offPeriod = offInterval;
+    void blink(uint16_t offInterval, uint16_t onInterval) {
+      onPeriod = offInterval;
+      offPeriod = onInterval;
+    }
+
+    void on(u16 period) {
+      digitalWrite(pin, ON);
+      delay(period);
+      digitalWrite(pin, state);
     }
 
     void flash(uint8_t count) {
       if (flashCount == 0 && count > 0) {
         // turn off
-        state = HIGH;
+        state = OFF;
         digitalWrite(pin, state);
         // Turn off 500ms first
         lastUpdate = millis();
@@ -69,9 +78,9 @@ class LED {
     uint8_t flashCount = 0;
   
     uint8_t pin;
-    uint8_t onPeriod = 0;
-    uint8_t offPeriod = 0;
-    uint8_t state = HIGH;
+    uint16_t onPeriod = 0;
+    uint16_t offPeriod = 0;
+    uint8_t state = HIGH;   // off by default
     long lastUpdate = millis();
 };
 

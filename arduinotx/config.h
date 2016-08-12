@@ -11,10 +11,13 @@
 #define AUX_UP_PIN      4
 #define AUX_DOWN_PIN    5
 
-#define BUZZ_PIN        8
-#define LED_GREEN_PIN   6   // 6
-#define LED_RED_PIN     7
+#define BUZZER_PIN      6
+#define LED_PIN         7
+
 #define BATTERY_PIN     A7
+
+#define BATTERY_LIMIT_HI           716  // 3.5v
+#define BATTERY_LIMIT_LO           675  // 3.3v
 
 //*******************
 //***   Pinouts   ***

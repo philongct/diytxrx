@@ -23,6 +23,7 @@
 #define TEST_PKT          252
 #define PAIR_PKT          251
 #define DATA_PKT          11
+#define TELE_PKT          12
 
 typedef struct HelloPkt {
   uint8_t len = sizeof(HelloPkt);
@@ -57,12 +58,15 @@ typedef struct SyncTestPkt {
 typedef struct ReceiverStatusPkt {
   uint8_t len = sizeof(ReceiverStatusPkt);
   uint8_t addr;
-  uint8_t pkt_type = DATA_PKT;
+  uint8_t pkt_type = TELE_PKT;
   uint8_t packetLost = 0;
   uint8_t lqi = 0;
-  uint8_t battery1 = 200;
-  uint8_t battery2 = 200;
-  uint8_t padding[FIXED_PKT_LEN - 7]; // remaining bytes to fit FIXED_PKT_LEN
+  uint16_t battery1 = 800;
+  uint16_t battery2 = 800;
+  uint16_t cycleCount = 0;
+  uint16_t error_pkts = 0;        // count number of error packets
+  u32 lastReceived;               // last timestamp packet was received
+  uint8_t padding[FIXED_PKT_LEN - 17]; // remaining bytes to fit FIXED_PKT_LEN
 } ReceiverStatusPkt;
 
 enum {
@@ -94,9 +98,9 @@ class TwoWaySyncProtocol {
     void init() {
       Serial.println("init");
       CC2500_Reset();
-      delay(500);    // wait for module to fully reset
+      delay(500);    // wait for module to fully reset and stable
 
-      resetSettings(1);
+      resetSettings(1); // startup in bind stage
 
       Serial.println("listen...");
       do {
@@ -105,7 +109,7 @@ class TwoWaySyncProtocol {
         for (int i = sizeof(arr) - 1; i >= 0; --i) {
           printlog(0, "0x%X: 0x%X", arr[i], CC2500_ReadReg(arr[i]));
         }
-        printlog(0, "try again %d", error_pkts);
+        printlog(0, "try again %d", stats.error_pkts);
         if (receive(BIND_CHANNEL, 3000000)) {
           HelloPkt* hello = (HelloPkt*)&packet_buff[0];
           if (hello->pkt_type == HELLO_PKT) { // validate
@@ -124,19 +128,13 @@ class TwoWaySyncProtocol {
     }
 
     /**
-       transmit & receive process using channel hopping:
-
-                1            2             3             4             5             6             7             8
-       receiver |--rws-------|---rws-------|---rws-------|-----------w-|-----------w-|------------w|---rws-------|------
-       sender   |ss---r-------|ss-----r-----|ss----xxxxxx-|ss-----------|ss-----------|ss-----------|ss---r-------|ss----
-                1               2             3             4             5             6             7             8
-
-       receiver interval after receiving packet: 9
-       receiver interval if not receiving any packet: 13
-       sender interval: 13
-
-       return remaining interval to execute remaining works
-    */
+     * transmit & receive using channel hopping:
+     *
+     * channel  1            2             3             4             5             6             7             8
+     * receiver |--rs-----w-|---rs------w-|---rs------w-|-----------w-|-----------w-|-----------w-|---rs------w-|------
+     * sender   |ss------r----|ss-----r-----|ss----xxxxxx-|ss-----------|ss-----------|ss-----------|ss-------r---|ss----
+     * channel  1              2             3             4             5             6             7             8
+     */
     bool receiveData(int32_t* delay) {
       *delay = 0; // default
 
@@ -153,20 +151,25 @@ class TwoWaySyncProtocol {
           Serial.println("start transmission");
         }
       } else if (state == TRANSMISSION) {
-        u32 begin = micros();  // start time frame
-        u32 delayTime = 14000; // delay 14ms each cycle. Actual value measured is about 14004us
-        Serial.println(begin);
+        u32 startFrame = micros();  // start timeframe
+        u32 delayTime = 14000;  // delay 14ms (transmitter interval) when packet not received. Actual value measured is about 14004us
+        Serial.println(startFrame);
         if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
-          begin = lastReceived;   // update time frame using packet receiving timestamp.
-                                  // This process take about 6ms if success
-          delayTime = 6500;       // Delay total ~13ms if received package.
-                                  // Actual value measured is about ~13752 - 14520us (because of other delaying in sbus...)
+          startFrame = stats.lastReceived;  // update timeframe using packet receiving time,
+                                            // receiving process take about 6ms if success.
+          delayTime = 6500;     // Delay total ~13ms if packet successfully received.
+                                // Actual value measured is about ~13752 - 14520us (because of other steps such as sbus writing...)
           
           lq_table[curChannel] = stats.lqi;
           stats.packetLost = 0;
           
-          Serial.print(hop_channels[curChannel], HEX);Serial.println(".");
-//        transmit((uint8_t*)&stats);
+          Serial.println(hop_channels[curChannel], HEX);
+          // Response telemetry every 2th cycle of channel hoping freq
+          // This is to save power & improve performance
+          if ( curChannel == 1 ) {
+//            Serial.println("t");
+            transmit((uint8_t*)&stats, 9, false); // telemetry packet doesn't need to send full length
+          }
         } else {
 //          Serial.println(hop_channels[curChannel], HEX);
           ++stats.packetLost;
@@ -175,8 +178,11 @@ class TwoWaySyncProtocol {
           }
         }
 
+        // the transmission of telemetry take extra 7ms
+        if (curChannel == 1) startFrame += 7000;
+
         curChannel = ++curChannel % HOP_CH;
-        *delay = begin + delayTime;
+        *delay = startFrame + delayTime;
         
         return stats.packetLost == 0;
       } else if (state == RADIO_LOST) {
@@ -200,13 +206,11 @@ class TwoWaySyncProtocol {
     }
 
   private:
-    uint8_t fixed_id = 0;   // not init yet
-    uint8_t hop_channels[HOP_CH];
-    uint8_t curChannel = 255;   // 255 mean not successfully paired
+    uint8_t fixed_id = 0;           // not initialized. Value will be set when pairing
+    uint8_t hop_channels[HOP_CH];   // channels for frequency hoping
+    uint8_t curChannel = 255;       // 255 mean not successfully paired
     uint8_t packet_buff[MAX_PKT];   // received data is stored here
-    u32 lastReceived;        // last time packet was received
-    uint8_t state = 0;
-    uint16_t error_pkts = 0;
+    uint8_t state = 0;              // current state (PAIR, TRANSMISSION, RADIO_LOST)
 
     void waitForSignal() {
       if (receive(BIND_CHANNEL, 100000)) {
@@ -274,16 +278,17 @@ class TwoWaySyncProtocol {
       return true;
     }
 
-    void transmit(uint8_t* buff) {
-      buff[0] = FIXED_PKT_LEN;
+    void transmit(uint8_t* buff, u8 len = FIXED_PKT_LEN, bool wait = true) {
+      buff[0] = len;
       buff[1] = fixed_id; // auto append address
 
       CC2500_Strobe(CC2500_SIDLE);  // exit RX mode
-//      CC2500_WriteReg(CC2500_0A_CHANNR, channel);
       CC2500_SetTxRxMode(TX_EN);
-      CC2500_WriteData(buff, MAX_PKT);
-      _delay_us(5000);  // wait for transmission complete
-      CC2500_SetTxRxMode(TXRX_OFF);
+      CC2500_WriteData(buff, len);  // write 25 bytes data took ~5ms
+      if (wait) {
+        _delay_us(5000);  // wait for transmission complete
+        CC2500_SetTxRxMode(TXRX_OFF);
+      }
     }
 
     uint8_t receive(uint8_t channel, uint32_t timeout) { // timeout in microseconds
@@ -300,16 +305,17 @@ class TwoWaySyncProtocol {
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
         // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
         if (len && len <= FIXED_PKT_LEN) {
-          CC2500_ReadData(packet_buff, MAX_PKT);
-          lastReceived = micros();
+          CC2500_ReadData(packet_buff, MAX_PKT);  // read 25 bytes data took ~5ms
 
+          stats.lastReceived = micros();
           stats.lqi = packet_buff[MAX_PKT - 1];
+
           CC2500_SetTxRxMode(TXRX_OFF);
           CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
           if (crcCheck(packet_buff)) {
             return len;
           } else {
-            ++error_pkts;
+            ++stats.error_pkts;
             return 0;
           }
         }
@@ -321,20 +327,13 @@ class TwoWaySyncProtocol {
       return 0;
     }
 
-//    u8 calculateRssi(u8 rssi_dec) {
-//      if (rssi_dec >= 128) {
-//        return -1*(((int16_t)rssi_dec - 256) / 2 - 71);  // 71 is rssi offset
-//      } else {
-//        return -1*((int16_t)rssi_dec / 2 - 71);
-//      }
-//    }
-
     bool crcCheck(u8* raw_pkt) {
+      // lazy packet integrity check
       return (u8)(~raw_pkt[3]) == raw_pkt[FIXED_PKT_LEN - 1];
     }
 
     void resetSettings(uint8_t bind) {
-      CC2500_WriteReg(CC2500_17_MCSM1, 0x0C); //CCA_MODE = 0 (Always) / RXOFF_MODE = 11 (stay in RX)/ TXOFF_MODE = 0
+      CC2500_WriteReg(CC2500_17_MCSM1, 0x00); //CCA_MODE = 0 (Always) / RXOFF_MODE = 0 / TXOFF_MODE = 0
       CC2500_WriteReg(CC2500_18_MCSM0, 0x18); //FS_AUTOCAL = 0x01 / PO_TIMEOUT = 0x10 ( Expire count 64 Approx. 149 – 155 µs)
       CC2500_WriteReg(CC2500_06_PKTLEN, FIXED_PKT_LEN); //PKTLEN=0x19 (25 bytes)
       CC2500_WriteReg(CC2500_07_PKTCTRL1, 0x04); //PQT = 0  / CRC_AUTOFLUSH = 0 / APPEND_STATUS = 1 / ADR_CHK = 00 (no address check)
@@ -346,7 +345,7 @@ class TwoWaySyncProtocol {
       CC2500_WriteReg(CC2500_0E_FREQ1, 0x76);
       CC2500_WriteReg(CC2500_0F_FREQ0, 0x27); //FREQ = 0x5C7627 (F = 2404MHz)
       CC2500_WriteReg(CC2500_10_MDMCFG4, 0x7B); //CHANBW_E = 1 / CHANBW_M = 3 / BW = 232.143kHz / DRATE_E = 0x0B
-      CC2500_WriteReg(CC2500_11_MDMCFG3, 0x52); //DRATE_M = 0x61 Bitrate = 67047.11914 bps
+      CC2500_WriteReg(CC2500_11_MDMCFG3, 0x51); //DRATE_M = 0x61 Bitrate = 67047.11914 bps
       CC2500_WriteReg(CC2500_12_MDMCFG2, 0x13); //MOD_FORMAT = 0x01 (GFSK) / SYNC_MODE = 3 (30/32 sync word bits detected)
       CC2500_WriteReg(CC2500_13_MDMCFG1, 0x23); //FEC_EN = Disable / NUM_PREAMBLE = 0x02 (4 bytes) / CHANSPC_E = 0x03
       CC2500_WriteReg(CC2500_14_MDMCFG0, 0x7a); //CHANSPC_M = 0x7A Channel Spacing = 299927Hz

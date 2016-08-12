@@ -49,9 +49,13 @@ void setup() {
 
   int inputBattery = analogRead(BATTERY_PIN);
   printlog(0, "battery %d", inputBattery);
-  // expect battery > 7v (3.5*2); 511 is 5v (2.5*2)
-  while(inputBattery > 511 && inputBattery < 716) {
-    notifier.loop();
+  // 511 is normal voltage (5v = 2.5*2)
+  if (inputBattery > 511 && inputBattery < BATTERY_LIMIT_LO) {
+    notifier.buzzWarnBattery();
+    while(true) {   // stop program from running
+      notifier.loop();
+    }
+  } else if(inputBattery > 511 && inputBattery < BATTERY_LIMIT_HI) {
     notifier.buzzAlertBattery();
   }
   
@@ -75,16 +79,24 @@ void setup() {
 
 // the loop routine runs over and over again forever:
 void loop() {
-  batteryCheck();
+  statusCheck();
 
   runLoop();
 }
 
-void batteryCheck() {
+void statusCheck() {
   //battery is <6.6 (3.3*2)
   int batt = analogRead(BATTERY_PIN);
-  if (batt > 511 && batt < 675) { 
+  if (batt > 511 && batt < BATTERY_LIMIT_LO || cur_protocol.receiverStatus.battery1 < BATTERY_LIMIT_HI || cur_protocol.receiverStatus.battery2 < BATTERY_LIMIT_HI) {
     notifier.buzzAlertBattery();
+  } else {
+    notifier.buzzOff();
+  }
+  
+  if (cur_protocol.receiverStatus.packetLost > 10) {
+    notifier.warnRf(1);
+  } else if (cur_protocol.receiverStatus.lqi < 5 || cur_protocol.receiverStatus.lqi > 127 || micros() - cur_protocol.receiverStatus.teleLastReceived > 2000000) {
+    notifier.warnRf(0);
   } else {
     notifier.showOK();
   }
