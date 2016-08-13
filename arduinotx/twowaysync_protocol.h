@@ -89,7 +89,7 @@ const PROGMEM uint8_t hop_data[] = {
 };
 
 // interval between transmits. Inspired by SBUS interval
-const u32 TRANSMISSION_INTERVAL = 14000;  // Actual value measured is ~14008us
+const u32 TRANSMISSION_INTERVAL = 14500;  // Actual value measured is ~14508us
 
 class TwoWaySyncProtocol: public Protocol {
   public:
@@ -172,13 +172,13 @@ class TwoWaySyncProtocol: public Protocol {
       if (curChannel == 255) return 0; // not ready to work
 
       Serial.println(startFrame);
-//      if (startFrame < 30000000 || startFrame > 40000000 || curChannel == 1){
+//      if (startFrame < 20000000 || startFrame > 40000000 || curChannel == 2){
 //        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);
 //      }
 
-      if (curChannel == 1) {
+      if (curChannel == 2 || curChannel == 9) {
         // telemetry packet is 9 bytes length
         if (receive(packet_buff, 6000, 9) && packet_buff[1] == fixed_id && packet_buff[2] == TELE_PKT) {
           memcpy(&receiverStatus, packet_buff, sizeof(ReceiverStatusPkt));

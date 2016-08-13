@@ -93,7 +93,7 @@ void statusCheck() {
     notifier.buzzOff();
   }
   
-  if (cur_protocol.receiverStatus.packetLost > 10) {
+  if (cur_protocol.receiverStatus.packetLost > 5) {
     notifier.warnRf(1);
   } else if (cur_protocol.receiverStatus.lqi < 5 || cur_protocol.receiverStatus.lqi > 127 || micros() - cur_protocol.receiverStatus.teleLastReceived > 2000000) {
     notifier.warnRf(0);

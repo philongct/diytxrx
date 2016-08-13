@@ -152,24 +152,24 @@ class TwoWaySyncProtocol {
         }
       } else if (state == TRANSMISSION) {
         u32 startFrame = micros();  // start timeframe
-        u32 delayTime = 14000;  // delay 14ms (transmitter interval) when packet not received. Actual value measured is about 14004us
+        u32 delayTime = 14500;  // delay 14ms (transmitter interval) when packet not received. Actual value measured is about 14504us
         Serial.println(startFrame);
         if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           startFrame = stats.lastReceived;  // update timeframe using packet receiving time,
                                             // receiving process take about 6ms if success.
-          delayTime = 6500;     // Delay total ~13ms if packet successfully received.
-                                // Actual value measured is about ~13752 - 14520us (because of other steps such as sbus writing...)
+          delayTime = 6500;     // Delay total ~14ms if packet successfully received
+                                // Actual value measured is ~14520us (TODO: why it's higher than expected???)
           
           lq_table[curChannel] = stats.lqi;
-          stats.packetLost = 0;
           
           Serial.println(hop_channels[curChannel], HEX);
-          // Response telemetry every 2th cycle of channel hoping freq
+          // Response telemetry every 2nd & 9th cycle of channel hoping freq
           // This is to save power & improve performance
-          if ( curChannel == 1 ) {
+          if (curChannel == 2 || curChannel == 9) {
 //            Serial.println("t");
             transmit((uint8_t*)&stats, 9, false); // telemetry packet doesn't need to send full length
           }
+          stats.packetLost = 0;
         } else {
 //          Serial.println(hop_channels[curChannel], HEX);
           ++stats.packetLost;
@@ -179,7 +179,7 @@ class TwoWaySyncProtocol {
         }
 
         // the transmission of telemetry take extra 7ms
-        if (curChannel == 1) startFrame += 7000;
+        if (curChannel == 2 || curChannel == 9) startFrame += 7000;
 
         curChannel = ++curChannel % HOP_CH;
         *delay = startFrame + delayTime;

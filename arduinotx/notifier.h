@@ -42,7 +42,7 @@ class Notifier {
 
     void warnRf(uint8_t mode) {
       if (mode == 0)         // rssi low
-        led.blink(100, 100);
+        led.blink(500, 200);
       else if (mode == 1)    // Package lost
         led.blink(60, 60);
 
