@@ -16,6 +16,8 @@
  * 
  */
 
+//#define DISABLE_RF
+
 #include "module_config.h"
 #include "config.h"
 
@@ -41,6 +43,9 @@ TwoWaySyncProtocol cur_protocol;
 // delaytime returned from protocol:
 // the protocol expect to delay n microseconds after next call
 u32 delayTime = 0;
+
+// workaround for input not updated at startup
+u8 started = 0;
 
 void setup() {
   printf_begin();
@@ -70,11 +75,13 @@ void setup() {
 
   initIoPins();
 
+#ifndef DISABLE_RF
   if (cur_protocol.init()) {
     while(!cur_protocol.pair()) {
       delay(1000);
     }
   }
+#endif
 }
 
 // the loop routine runs over and over again forever:
@@ -82,6 +89,7 @@ void loop() {
   statusCheck();
 
   runLoop();
+  started = 1;
 }
 
 void statusCheck() {
@@ -93,6 +101,7 @@ void statusCheck() {
     notifier.buzzOff();
   }
   
+#ifndef DISABLE_RF
   if (cur_protocol.receiverStatus.packetLost > 5) {
     notifier.warnRf(1);
   } else if (cur_protocol.receiverStatus.lqi < 5 || cur_protocol.receiverStatus.lqi > 127 || micros() - cur_protocol.receiverStatus.teleLastReceived > 2000000) {
@@ -100,6 +109,7 @@ void statusCheck() {
   } else {
     notifier.showOK();
   }
+#endif
 }
 
 int16_t remap(int16_t input) {
@@ -114,17 +124,19 @@ int16_t remap(int16_t input) {
 
 void runLoop() {
   bool changed = input.readAnalog();
-  if (changed) {
+  if (changed || !started) {
     cur_protocol.setChannelValue(0, map(input.analogVals[0], 0, 1023, 1000, 2000));
     cur_protocol.setChannelValue(1, remap(input.analogVals[1] - GLOBAL_CFG.gimbalMidPointsDelta[0]));
     cur_protocol.setChannelValue(2, remap(input.analogVals[2] - GLOBAL_CFG.gimbalMidPointsDelta[1]));
     cur_protocol.setChannelValue(3, remap(input.analogVals[3] - GLOBAL_CFG.gimbalMidPointsDelta[2]));
 
-//    // TODO: remove or configured whether print or not
-//    printlog(2, ">>gas:%d,yaw:%d,roll:%d,pitch:%d", cur_protocol.getChannelValue(0), cur_protocol.getChannelValue(1), cur_protocol.getChannelValue(2), cur_protocol.getChannelValue(3));
+#ifndef DISABLE_RF
+    // TODO: remove or configured whether print or not
+    printlog(2, ">>gas:%d,yaw:%d,roll:%d,pitch:%d", cur_protocol.getChannelValue(0), cur_protocol.getChannelValue(1), cur_protocol.getChannelValue(2), cur_protocol.getChannelValue(3));
+#endif
   }
 
-  if (input.readDigital()) {
+  if (input.readDigital() || !started) {
     cur_protocol.setChannelValue(4, input.currentFlightMode);
     cur_protocol.setChannelValue(6, input.aux[0]);
     cur_protocol.setChannelValue(7, input.aux[1]);
@@ -133,8 +145,10 @@ void runLoop() {
 
   notifier.loop();
 
+#ifndef DISABLE_RF
   while (micros() < delayTime); // busy wait
   delayTime = cur_protocol.transmitAndReceive();
+#endif
 }
 
 
