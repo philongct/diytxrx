@@ -11,7 +11,7 @@ uint8_t const ANALOGS[AXIS_NUM] = {A0, A1, A2, A3};
 
 class Input {
   public:
-    uint16_t analogVals[AXIS_NUM];
+    int16_t analogVals[AXIS_NUM];
     uint8_t currentFlightMode = 0;
     uint16_t aux[AUX_NUM] = {0, 0, 0};
 

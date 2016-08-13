@@ -18,6 +18,9 @@
 
 //#define DISABLE_RF
 
+#define SBUS_MIN    193     // for cleanflight to display 1000 to
+#define SBUS_MAX    1791    // 2000 and midpoint 1500
+
 #include "module_config.h"
 #include "config.h"
 
@@ -117,7 +120,7 @@ int16_t remap(int16_t input) {
   else if (input > 1023) input = 1023;  // compenstation
 
   if (GLOBAL_CFG.midPointCorrection && input < 514 && input > 510) input = 512;
-  int16_t val = map(input, 0, 1023, 1000, 2000);
+  int16_t val = map(input, 0, 1023, SBUS_MIN, SBUS_MAX);
 
   return val;
 }
@@ -125,22 +128,22 @@ int16_t remap(int16_t input) {
 void runLoop() {
   bool changed = input.readAnalog();
   if (changed || !started) {
-    cur_protocol.setChannelValue(0, map(input.analogVals[0], 0, 1023, 1000, 2000));
+    cur_protocol.setChannelValue(0, map(input.analogVals[0], 0, 1023, SBUS_MIN, SBUS_MAX));
     cur_protocol.setChannelValue(1, remap(input.analogVals[1] - GLOBAL_CFG.gimbalMidPointsDelta[0]));
     cur_protocol.setChannelValue(2, remap(input.analogVals[2] - GLOBAL_CFG.gimbalMidPointsDelta[1]));
     cur_protocol.setChannelValue(3, remap(input.analogVals[3] - GLOBAL_CFG.gimbalMidPointsDelta[2]));
 
-#ifndef DISABLE_RF
+#if defined(DISABLE_RF)
     // TODO: remove or configured whether print or not
     printlog(2, ">>gas:%d,yaw:%d,roll:%d,pitch:%d", cur_protocol.getChannelValue(0), cur_protocol.getChannelValue(1), cur_protocol.getChannelValue(2), cur_protocol.getChannelValue(3));
 #endif
   }
 
   if (input.readDigital() || !started) {
-    cur_protocol.setChannelValue(4, input.currentFlightMode);
-    cur_protocol.setChannelValue(6, input.aux[0]);
-    cur_protocol.setChannelValue(7, input.aux[1]);
-    cur_protocol.setChannelValue(8, input.aux[2]);
+    cur_protocol.setChannelValue(4, map(input.currentFlightMode, 0, 2, SBUS_MIN, SBUS_MAX));
+    cur_protocol.setChannelValue(6, map(input.aux[0], 0, 100, SBUS_MIN, SBUS_MAX));
+    cur_protocol.setChannelValue(7, map(input.aux[1], 0, 100, SBUS_MIN, SBUS_MAX));
+    cur_protocol.setChannelValue(8, map(input.aux[2], 0, 100, SBUS_MIN, SBUS_MAX));
   }
 
   notifier.loop();
