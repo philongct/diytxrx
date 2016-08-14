@@ -73,7 +73,9 @@ void loop() {
 void sbusLostSignal(uint8_t *sbusPacket) {
   sbusPacket[23] = 0;
   if (rx.isRadioLost() && input.getfailSafeEnabled()) {
-    sbusPacket[23] |= (1<<2);
+    sbusPacket[23] |= (1<<2);   // frame lost
+    sbusPacket[23] |= (1<<3);   // activate failsafe
+    Serial.println("failsafe on");
   }
 }
 
