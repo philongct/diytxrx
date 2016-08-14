@@ -172,7 +172,7 @@ class TwoWaySyncProtocol: public Protocol {
       if (curChannel == 255) return 0; // not ready to work
 
       Serial.println(startFrame);
-//      if (startFrame < 20000000 || startFrame > 40000000 || curChannel == 2){
+//      if (startFrame < 20000000 || startFrame > 40000000 || curChannel == 9){
 //        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);
@@ -259,12 +259,6 @@ class TwoWaySyncProtocol: public Protocol {
       sbus_data_pkt[0] = 16 + offset;
       sbus_data_pkt[1] = fixed_id;
       sbus_data_pkt[2] = DATA_PKT;
-
-//      uint8_t i;
-//      // clear received channel data
-//      for (i = 0; i < 16; i++) {    //16 = SBUS WORD * number of channels(11)
-//        sbus_data_pkt[i + offset] = 0;
-//      }
 
       // reset counters
       uint8_t ch = 0;

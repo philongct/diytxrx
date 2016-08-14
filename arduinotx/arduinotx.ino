@@ -105,9 +105,11 @@ void statusCheck() {
   }
   
 #ifndef DISABLE_RF
-  if (cur_protocol.receiverStatus.packetLost > 5) {
+  if (micros() - cur_protocol.receiverStatus.teleLastReceived > 2000000) {
     notifier.warnRf(1);
-  } else if (cur_protocol.receiverStatus.lqi < 5 || cur_protocol.receiverStatus.lqi > 127 || micros() - cur_protocol.receiverStatus.teleLastReceived > 2000000) {
+  } else if (cur_protocol.receiverStatus.packetLost > 5) {
+    notifier.warnRf(2);
+  } else if (cur_protocol.receiverStatus.lqi < 5 || cur_protocol.receiverStatus.lqi > 127) {
     notifier.warnRf(0);
   } else {
     notifier.showOK();

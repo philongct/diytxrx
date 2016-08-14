@@ -41,11 +41,18 @@ class Notifier {
     }
 
     void warnRf(uint8_t mode) {
-      if (mode == 0)         // rssi low
-        led.blink(500, 200);
-      else if (mode == 1)    // Package lost
-        led.blink(60, 60);
-
+      switch(mode) {
+        case 0: // rssi low
+          led.blink(30, 1500);
+          break;
+        case 1: // no telemetry received
+          led.blink(60, 60);
+          break;
+        case 2: // Package lost
+          led.blink(500, 200);
+          break;
+      }
+      
       if (!priority)
         buzzer.blink(1500, 30);
     }
