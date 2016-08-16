@@ -22,7 +22,7 @@ class Notifier {
     // Battery is at low level
     void buzzWarnBattery() {
       priority = 1;
-      buzzer.blink(1000, 50);
+      buzzer.blink(500, 30);
     }
 
     // Battery is at very low level
