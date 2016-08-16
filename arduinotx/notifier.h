@@ -32,7 +32,7 @@ class Notifier {
     }
 
     void buzzOff() {
-      buzzer.blink(0, 1000);
+      buzzer.blink(1000, 0);
       priority = 0;
     }
 

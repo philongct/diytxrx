@@ -37,11 +37,11 @@ class LED {
           --flashCount;
         }
       } else if (flashCount == 0) {
-        if ( onPeriod == 0 || (state == ON && millis() - lastUpdate > offPeriod)) {
+        if (state == ON && millis() - lastUpdate > onPeriod) {
           state = OFF;
           lastUpdate = millis();
           printlog(4, "LED OFF");
-        } else if ( state == OFF && millis() - lastUpdate > onPeriod ) {
+        } else if (onPeriod != 0 && state == OFF && millis() - lastUpdate > offPeriod ) {
           state = ON;
           lastUpdate = millis();
           printlog(4, "LED ON");
@@ -52,8 +52,8 @@ class LED {
     }
 
     void blink(uint16_t offInterval, uint16_t onInterval) {
-      onPeriod = offInterval;
-      offPeriod = onInterval;
+      offPeriod = offInterval;
+      onPeriod = onInterval;
     }
 
     void on(u16 period) {
@@ -80,7 +80,7 @@ class LED {
     uint8_t pin;
     uint16_t onPeriod = 0;
     uint16_t offPeriod = 0;
-    uint8_t state = HIGH;   // off by default
+    uint8_t state = OFF;   // off by default
     long lastUpdate = millis();
 };
 

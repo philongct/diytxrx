@@ -141,12 +141,12 @@ void runLoop() {
 #endif
   }
 
-  if (input.readDigital() || !started) {
-    cur_protocol.setChannelValue(4, map(input.currentFlightMode, 0, 2, SBUS_MIN, SBUS_MAX));
-    cur_protocol.setChannelValue(6, map(input.aux[0], 0, 100, SBUS_MIN, SBUS_MAX));
-    cur_protocol.setChannelValue(7, map(input.aux[1], 0, 100, SBUS_MIN, SBUS_MAX));
-    cur_protocol.setChannelValue(8, map(input.aux[2], 0, 100, SBUS_MIN, SBUS_MAX));
-  }
+  input.readDigital();
+  cur_protocol.setChannelValue(4, map(input.currentFlightMode, 0, 2, SBUS_MIN, SBUS_MAX));
+  cur_protocol.setChannelValue(5, map(input.aux[0], 0, 2, SBUS_MIN, SBUS_MAX));
+  cur_protocol.setChannelValue(6, map(input.aux[1], 0, 100, SBUS_MIN, SBUS_MAX));
+  cur_protocol.setChannelValue(7, map(input.aux[2], 0, 100, SBUS_MIN, SBUS_MAX));
+  cur_protocol.setChannelValue(8, map(input.aux[3], 0, 100, SBUS_MIN, SBUS_MAX));
 
   notifier.loop();
 

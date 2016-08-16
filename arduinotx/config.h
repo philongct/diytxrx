@@ -5,12 +5,6 @@
 
 #include "logger.h"
 
-#define FLIGH_MODE_PIN  2
-
-#define AUX_SEL_PIN     3
-#define AUX_UP_PIN      4
-#define AUX_DOWN_PIN    5
-
 #define BUZZER_PIN      6
 #define LED_PIN         7
 

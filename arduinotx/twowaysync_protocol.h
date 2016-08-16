@@ -183,6 +183,7 @@ class TwoWaySyncProtocol: public Protocol {
         if (receive(packet_buff, 6000, 9) && packet_buff[1] == fixed_id && packet_buff[2] == TELE_PKT) {
           memcpy(&receiverStatus, packet_buff, sizeof(ReceiverStatusPkt));
           receiverStatus.teleLastReceived = startFrame;
+//          receiverStatus.lqi = 2;
 //          Serial.println(micros() - startFrame);
 //          Serial.println(receiverStatus.battery2);
 //          Serial.println(receiverStatus.lqi);
