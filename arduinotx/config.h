@@ -10,7 +10,7 @@
 
 #define BATTERY_PIN     A7
 
-#define BATTERY_LIMIT_HI           737  // 3.6v
+#define BATTERY_LIMIT_HI           750  // 3.66v
 #define BATTERY_LIMIT_LO           716  // 3.5v
 
 //*******************

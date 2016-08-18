@@ -59,12 +59,17 @@ void setup() {
   printlog(0, "battery %d", inputBattery);
   // 511 is normal voltage (5v = 2.5*2)
   if (inputBattery > 511 && inputBattery < BATTERY_LIMIT_LO) {
-    notifier.buzzWarnBattery();
+    Serial.println("battery not enough");
+    notifier.buzzBatteryDanger();
     while(true) {   // stop program from running
       notifier.loop();
     }
   } else if(inputBattery > 511 && inputBattery < BATTERY_LIMIT_HI) {
-    notifier.buzzAlertBattery();
+    Serial.println("warn battery");
+    notifier.buzzWarnBattery();
+    while(millis() < 3000) {  // notify for first 3s after startup
+      notifier.loop();
+    }
   }
   
   GLOBAL_CFG.load();
@@ -99,7 +104,7 @@ void statusCheck() {
   //battery is <6.6 (3.3*2)
   int batt = analogRead(BATTERY_PIN);
   if (batt > 511 && batt < BATTERY_LIMIT_LO || cur_protocol.receiverStatus.battery1 < BATTERY_LIMIT_HI || cur_protocol.receiverStatus.battery2 < BATTERY_LIMIT_HI) {
-    notifier.buzzAlertBattery();
+    notifier.buzzWarnBattery();
   } else {
     notifier.buzzOff();
   }

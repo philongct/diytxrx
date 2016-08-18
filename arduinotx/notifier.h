@@ -26,7 +26,7 @@ class Notifier {
     }
 
     // Battery is at very low level
-    void buzzAlertBattery() {
+    void buzzBatteryDanger() {
       priority = 1;
       buzzer.blink(70, 70);
     }
