@@ -186,7 +186,7 @@ class TwoWaySyncProtocol: public Protocol {
 //          receiverStatus.lqi = 2;
 //          Serial.println(micros() - startFrame);
 //          Serial.println(receiverStatus.battery2);
-//          Serial.println(receiverStatus.lqi);
+          Serial.println(receiverStatus.lqi);
 //          Serial.println(receiverStatus.packetLost);
         }
 

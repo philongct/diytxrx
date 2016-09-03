@@ -243,7 +243,6 @@ class TwoWaySyncProtocol {
       int chanCounter = 50;  // hop_data len
       u8 chann = 0;
       u8 bestLqi = 0;
-      u8 bestChann = 0;
       do {
         --chanCounter;
         chann = pgm_read_byte_near(&hop_data[chanCounter]);
@@ -253,16 +252,12 @@ class TwoWaySyncProtocol {
         }
 
         lq_table[chanCounter] = stats.lqi;
-        if (lq_table[chanCounter] > bestLqi) bestChann = chann;
+        if (lq_table[chanCounter] > bestLqi) bestLqi = lq_table[chanCounter];
         printlog(0, "%d lqi: %d", chann, lq_table[chanCounter]);
       } while (chanCounter > 0);
 
       WelcomebackPkt fin;
-      int okCount = 0;
-      fin.paired_channels[0] = bestChann;
-      for (uint8_t i = 1; i < HOP_CH; ++i) {    // TODO: use lqi to determine which is best channel
-        fin.paired_channels[i] = pgm_read_byte_near(&hop_data[i]);
-      }
+      getHopChannels(fin.paired_channels, lq_table, bestLqi);
 
       memcpy(hop_channels, fin.paired_channels, HOP_CH);
       for (u8 i = 0; i < 2; ++i) {
@@ -276,6 +271,22 @@ class TwoWaySyncProtocol {
       resetSettings(0);
       Serial.println("ready");
       return true;
+    }
+
+    void getHopChannels(u8* output, u8* lqiTable, u8 minLqi) {
+      u8 remain = HOP_CH;
+      u8 nextLqi = 0;
+      while(remain > 0) {
+        for (u8 i = 0; i < 50 && remain > 0; ++i) {
+          if (lqiTable[i] == minLqi) {
+            output[--remain] = pgm_read_byte_near(&hop_data[i]);
+          } else if (lqiTable[i] > nextLqi && lqiTable[i] < minLqi) {
+            nextLqi = lqiTable[i];
+          }
+        }
+        minLqi = nextLqi;
+        nextLqi = 0;
+      }
     }
 
     void transmit(uint8_t* buff, u8 len = FIXED_PKT_LEN, bool wait = true) {
