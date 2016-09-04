@@ -114,7 +114,7 @@ void statusCheck() {
     notifier.warnRf(1);
   } else if (cur_protocol.receiverStatus.packetLost > 5) {
     notifier.warnRf(2);
-  } else if (cur_protocol.receiverStatus.lqi < -20 || cur_protocol.receiverStatus.lqi > 120) {
+  } else if (cur_protocol.badSignal()) {
     notifier.warnRf(0);
   } else {
     notifier.showOK();

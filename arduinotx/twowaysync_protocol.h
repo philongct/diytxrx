@@ -72,8 +72,8 @@ typedef struct ReceiverStatusPkt {
   uint8_t addr;
   uint8_t pkt_type = TELE_PKT;
   uint8_t packetLost = 0;
-  int8_t lqi = 0;   // when NO CRC check, lqi is signed
-  uint8_t rssi = 0;
+  uint8_t lqi = 0;
+  int8_t rssi = 0;
   uint16_t battery = 800; // min battery
   // end params transmitted from receiver
   uint16_t cycleCount = 0;
@@ -195,6 +195,7 @@ class TwoWaySyncProtocol: public Protocol {
 //          Serial.println(micros() - startFrame);
 //          Serial.println(receiverStatus.battery);
           Serial.println(receiverStatus.lqi);
+//          Serial.println(receiverStatus.rssi);
         }
 
         // the receiving of telemetry take extra ~7ms
@@ -213,6 +214,10 @@ class TwoWaySyncProtocol: public Protocol {
 
     uint16_t getChannelValue(uint8_t channel) {
       return channel_data[channel];
+    }
+
+    boolean badSignal() {
+      return receiverStatus.lqi > 105 || (receiverStatus.lqi < 3 && receiverStatus.rssi > 100);  // rssi > -20
     }
 
   private:

@@ -321,8 +321,8 @@ class TwoWaySyncProtocol {
           CC2500_ReadData(packet_buff, MAX_PKT);  // read 25 bytes data took ~5ms
 
           stats.lastReceived = micros();
-          stats.lqi = packet_buff[MAX_PKT - 1];
-          stats.rssi = packet_buff[MAX_PKT - 2];
+          stats.lqi = packet_buff[packet_buff[0] + 1];
+          stats.rssi = packet_buff[packet_buff[0]];
 
           CC2500_SetTxRxMode(TXRX_OFF);
           CC2500_Strobe(CC2500_SIDLE);  // IDLE once done
