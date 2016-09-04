@@ -76,6 +76,8 @@ enum {
   RADIO_LOST = 3
 };
 
+#define ACCEPTABLE_LQI    126
+
 const PROGMEM uint8_t hop_data[] = {
   0x05, 0xD5, 0xBC, 0xA3, 0x8A,
   0x71, 0x58, 0x3F, 0x26, 0x0D,
@@ -242,17 +244,17 @@ class TwoWaySyncProtocol {
 
       int chanCounter = 50;  // hop_data len
       u8 chann = 0;
-      u8 bestLqi = 0;
+      u8 bestLqi = ACCEPTABLE_LQI; // worst LQI value allowed
       do {
         --chanCounter;
         chann = pgm_read_byte_near(&hop_data[chanCounter]);
-        if (!receive(chann, 200000)) {
+        if (!receive(chann, 200000) || stats.lqi > ACCEPTABLE_LQI) {
           printlog(0, "failed at %d", chanCounter);
           return false;
         }
 
         lq_table[chanCounter] = stats.lqi;
-        if (lq_table[chanCounter] > bestLqi) bestLqi = lq_table[chanCounter];
+        if (lq_table[chanCounter] < bestLqi) bestLqi = lq_table[chanCounter];
         printlog(0, "%d lqi: %d", chann, lq_table[chanCounter]);
       } while (chanCounter > 0);
 
@@ -275,17 +277,17 @@ class TwoWaySyncProtocol {
 
     void getHopChannels(u8* output, u8* lqiTable, u8 minLqi) {
       u8 remain = HOP_CH;
-      u8 nextLqi = 0;
+      u8 nextLqi = ACCEPTABLE_LQI;
       while(remain > 0) {
         for (u8 i = 0; i < 50 && remain > 0; ++i) {
           if (lqiTable[i] == minLqi) {
             output[--remain] = pgm_read_byte_near(&hop_data[i]);
-          } else if (lqiTable[i] > nextLqi && lqiTable[i] < minLqi) {
+          } else if (lqiTable[i] > minLqi && lqiTable[i] < nextLqi) {
             nextLqi = lqiTable[i];
           }
         }
         minLqi = nextLqi;
-        nextLqi = 0;
+        nextLqi = ACCEPTABLE_LQI;
       }
     }
 

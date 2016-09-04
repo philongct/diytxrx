@@ -23,6 +23,12 @@
 #define DATA_PKT          11
 #define TELE_PKT          12
 
+#define CC2500_MAX_POWER    CC2500_POWER_17
+#define CC2500_HIGH_POWER   CC2500_POWER_16
+#define CC2500_LOW_POWER    CC2500_POWER_13
+#define CC2500_RANGE_POWER  CC2500_POWER_1
+#define CC2500_BIND_POWER   CC2500_POWER_5
+
 typedef struct HelloPkt {
   uint8_t len = sizeof(HelloPkt);
   uint8_t addr;
