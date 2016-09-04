@@ -104,6 +104,8 @@ class TwoWaySyncProtocol: public Protocol {
       HelloPkt hello;
 
       resetSettings(0);
+      // packetLost must turn to 0 after sucessfully paired
+      receiverStatus.packetLost = 100;
 
       do {
         delay(1000);  // wait a while
