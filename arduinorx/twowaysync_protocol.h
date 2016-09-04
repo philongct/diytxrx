@@ -61,12 +61,13 @@ typedef struct ReceiverStatusPkt {
   uint8_t pkt_type = TELE_PKT;
   uint8_t packetLost = 0;
   uint8_t lqi = 0;
-  uint16_t battery1 = 800;
-  uint16_t battery2 = 800;
+  uint8_t rssi = 0; 
+  uint16_t battery = 800; // min battery
+  // end transmit params
   uint16_t cycleCount = 0;
   uint16_t error_pkts = 0;        // count number of error packets
   u32 lastReceived;               // last timestamp packet was received
-  uint8_t padding[FIXED_PKT_LEN - 17]; // remaining bytes to fit FIXED_PKT_LEN
+  uint8_t padding[FIXED_PKT_LEN - 16]; // remaining bytes to fit FIXED_PKT_LEN
 } ReceiverStatusPkt;
 
 enum {
@@ -166,8 +167,7 @@ class TwoWaySyncProtocol {
           // Response telemetry every 2nd & 9th cycle of channel hoping freq
           // This is to save power & improve performance
           if (curChannel == 2 || curChannel == 9) {
-//            Serial.println("t");
-            transmit((uint8_t*)&stats, 9, false); // telemetry packet doesn't need to send full length
+            transmit((uint8_t*)&stats, 8, false); // telemetry packet doesn't need to send full length
           }
           stats.packetLost = 0;
         } else {
@@ -320,6 +320,7 @@ class TwoWaySyncProtocol {
 
           stats.lastReceived = micros();
           stats.lqi = packet_buff[MAX_PKT - 1];
+          stats.rssi = packet_buff[MAX_PKT - 2];
 
           CC2500_SetTxRxMode(TXRX_OFF);
           CC2500_Strobe(CC2500_SIDLE);  // IDLE once done

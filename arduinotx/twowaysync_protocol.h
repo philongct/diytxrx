@@ -66,13 +66,14 @@ typedef struct ReceiverStatusPkt {
   uint8_t addr;
   uint8_t pkt_type = TELE_PKT;
   uint8_t packetLost = 0;
-  uint8_t lqi = 0;
-  uint16_t battery1 = 800;
-  uint16_t battery2 = 800;
+  int8_t lqi = 0;   // when NO CRC check, lqi is signed
+  uint8_t rssi = 0;
+  uint16_t battery = 800; // min battery
+  // end params transmitted from receiver
   uint16_t cycleCount = 0;
   uint16_t error_pkts = 0;        // count number of error packets
   u32 teleLastReceived;               // last timestamp telemetry packet was received at tx
-  uint8_t padding[FIXED_PKT_LEN - 17]; // remaining bytes to fit FIXED_PKT_LEN
+  uint8_t padding[FIXED_PKT_LEN - 16]; // remaining bytes to fit FIXED_PKT_LEN
 } ReceiverStatusPkt;
 
 const PROGMEM uint8_t hop_data[] = {
@@ -173,21 +174,19 @@ class TwoWaySyncProtocol: public Protocol {
 
       Serial.println(startFrame);
 //      if (startFrame < 20000000 || startFrame > 40000000 || curChannel == 9){
-//        Serial.println(hop_channels[curChannel], HEX);
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);
 //      }
 
       if (curChannel == 2 || curChannel == 9) {
         // telemetry packet is 9 bytes length
-        if (receive(packet_buff, 6000, 9) && packet_buff[1] == fixed_id && packet_buff[2] == TELE_PKT) {
+        if (receive(packet_buff, 6000, 8) && packet_buff[1] == fixed_id && packet_buff[2] == TELE_PKT) {
           memcpy(&receiverStatus, packet_buff, sizeof(ReceiverStatusPkt));
           receiverStatus.teleLastReceived = startFrame;
 //          receiverStatus.lqi = 2;
 //          Serial.println(micros() - startFrame);
-//          Serial.println(receiverStatus.battery2);
+//          Serial.println(receiverStatus.battery);
           Serial.println(receiverStatus.lqi);
-//          Serial.println(receiverStatus.packetLost);
         }
 
         // the receiving of telemetry take extra ~7ms
@@ -244,7 +243,6 @@ class TwoWaySyncProtocol: public Protocol {
         if (len && len <= FIXED_PKT_LEN) {
           CC2500_ReadData(buffer, pktLen);  // read 25 bytes data took ~5ms
           CC2500_SetTxRxMode(TXRX_OFF);
-
           return len;
         }
         time_exec = micros() - time_start;

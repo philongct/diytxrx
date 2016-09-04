@@ -103,7 +103,7 @@ void loop() {
 void statusCheck() {
   //battery is <6.6 (3.3*2)
   int batt = analogRead(BATTERY_PIN);
-  if (batt > 511 && batt < BATTERY_LIMIT_LO || cur_protocol.receiverStatus.battery1 < BATTERY_LIMIT_HI || cur_protocol.receiverStatus.battery2 < BATTERY_LIMIT_HI) {
+  if (batt > 511 && batt < BATTERY_LIMIT_LO || cur_protocol.receiverStatus.battery < BATTERY_LIMIT_HI) {
     notifier.buzzWarnBattery();
   } else {
     notifier.buzzOff();
@@ -114,7 +114,7 @@ void statusCheck() {
     notifier.warnRf(1);
   } else if (cur_protocol.receiverStatus.packetLost > 5) {
     notifier.warnRf(2);
-  } else if (cur_protocol.receiverStatus.lqi < 5 || cur_protocol.receiverStatus.lqi > 127) {
+  } else if (cur_protocol.receiverStatus.lqi < -20) {
     notifier.warnRf(0);
   } else {
     notifier.showOK();

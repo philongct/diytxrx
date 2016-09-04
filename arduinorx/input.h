@@ -47,6 +47,10 @@ class Input {
       return digitalRead(FLIGH_SAFE_PIN);
     }
 
+    /**
+     * return battery value of cellNumber.
+     * return 800 if cell is not connected
+     */
     uint16_t getCellVoltage(uint8_t cellNum) {
       u16 val = analogRead(CELLS[cellNum - 1]);
       if (val < 610) val = 800;   // 610 ~ 2.9v --> voltage never go bellow this value

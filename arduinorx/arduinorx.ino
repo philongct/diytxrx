@@ -62,8 +62,7 @@ void loop() {
   sbusLostSignal(sbusPacket);
   sbusWrite(sbusPacket);
 
-  rx.stats.battery1 = input.getCellVoltage(1);
-  rx.stats.battery2 = input.getCellVoltage(2);
+  rx.stats.battery = min(input.getCellVoltage(1), input.getCellVoltage(2));
   // increase cycleCount
   if (rx.stats.cycleCount++ % 100 == 0) {
     printlog(0, "--> lqi %d", rx.stats.lqi);
