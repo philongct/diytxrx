@@ -28,7 +28,7 @@ class Notifier {
     // Battery is at very low level
     void buzzBatteryDanger() {
       priority = 1;
-      buzzer.blink(70, 70);
+      buzzer.blink(10, 1000);
     }
 
     void buzzOff() {
@@ -44,17 +44,20 @@ class Notifier {
       switch(mode) {
         case 0: // rssi low
           led.blink(30, 1500);
+          if (!priority)
+            buzzer.blink(1500, 30);
           break;
         case 1: // no telemetry received
           led.blink(60, 60);
+          if (!priority)
+            buzzer.blink(70, 70);
           break;
         case 2: // Package lost
           led.blink(500, 200);
+          if (!priority)
+            buzzer.blink(500, 1000);
           break;
       }
-      
-      if (!priority)
-        buzzer.blink(1500, 30);
     }
 
     void showOK() {
