@@ -181,9 +181,11 @@ class TwoWaySyncProtocol: public Protocol {
       if (curChannel == 255) return 0; // not ready to work
 
       Serial.println(startFrame);
-//      if (startFrame < 20000000 || startFrame > 40000000 || curChannel == 9){
+//      if (startFrame < 20000000 || (startFrame > 50000000 && startFrame < 90000000) || startFrame > 120000000 || curChannel == 5){
         buildDataPacket(packet_buff);
         transmit(hop_channels[curChannel], packet_buff);
+//      } else {
+//        _delay_us(7000);
 //      }
 
       if (curChannel == 2 || curChannel == 9) {
@@ -195,7 +197,7 @@ class TwoWaySyncProtocol: public Protocol {
 //          Serial.println(micros() - startFrame);
 //          Serial.println(receiverStatus.battery);
           Serial.println(receiverStatus.lqi);
-//          Serial.println(receiverStatus.rssi);
+          Serial.println(receiverStatus.rssi);
         }
 
         // the receiving of telemetry take extra ~7ms
@@ -217,7 +219,7 @@ class TwoWaySyncProtocol: public Protocol {
     }
 
     boolean badSignal() {
-      return receiverStatus.lqi > 105 || (receiverStatus.lqi < 3 && receiverStatus.rssi > 100);  // rssi > -20
+      return receiverStatus.lqi > 105 || (receiverStatus.lqi < 3 && receiverStatus.rssi > -30);
     }
 
   private:

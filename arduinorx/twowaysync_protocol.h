@@ -61,7 +61,7 @@ typedef struct ReceiverStatusPkt {
   uint8_t pkt_type = TELE_PKT;
   uint8_t packetLost = 0;
   uint8_t lqi = 0;
-  uint8_t rssi = 0; 
+  int8_t rssi = 0;
   uint16_t battery = 800; // min battery
   // end transmit params
   uint16_t cycleCount = 0;
@@ -92,6 +92,7 @@ const PROGMEM uint8_t hop_data[] = {
 };
 
 uint8_t lq_table[50]; // lqi table for each channel
+int8_t rssi_table[HOP_CH];  // rssi tables to measure average rssi
 
 class TwoWaySyncProtocol {
   public:
@@ -157,31 +158,39 @@ class TwoWaySyncProtocol {
         u32 startFrame = micros();  // start timeframe
         u32 delayTime = 14500;  // delay 14ms (transmitter interval) when packet not received. Actual value measured is about 14504us
         Serial.println(startFrame);
+        
+        rssi_table[curChannel] = 0x7F; // assumed not received (127/2 - RSSI_OFFSET ~ -7dbm. This is low enough to consider not received)
+        lq_table[curChannel] = 0x7F;   // very high mean not received
+        
         if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           startFrame = stats.lastReceived;  // update timeframe using packet receiving time,
                                             // receiving process take about 6ms if success.
-          delayTime = 6500;     // Delay total ~14ms if packet successfully received
-                                // Actual value measured is ~14520us (TODO: why it's higher than expected???)
+          delayTime = 6500;     // Delay total ~13ms if packet successfully received
+                                // Actual value measured is ~14472 - 14576 us
+                                // because receive() may try several times before packet arrived
           
           lq_table[curChannel] = stats.lqi;
+          rssi_table[curChannel] = stats.rssi;
           
           Serial.println(hop_channels[curChannel], HEX);
-          // Response telemetry every 2nd & 9th cycle of channel hoping freq
-          // This is to save power & improve performance
-          if (curChannel == 2 || curChannel == 9) {
-            transmit((uint8_t*)&stats, 8, false); // telemetry packet doesn't need to send full length
-          }
-          stats.packetLost = 0;
-        } else {
-//          Serial.println(hop_channels[curChannel], HEX);
-          ++stats.packetLost;
-          if (isRadioLost()) { // 13 * 100 = 1300: radio lost timeout
-            state = RADIO_LOST;
-          }
         }
 
-        // the transmission of telemetry take extra 7ms
-        if (curChannel == 2 || curChannel == 9) startFrame += 7000;
+        // Response telemetry every 2nd & 9th cycle of channel hoping freq
+        // This is to save power & improve performance
+        if (curChannel == 2 || curChannel == 9) {
+          stats.rssi = averageRssi();
+          transmit((uint8_t*)&stats, 8, false); // telemetry packet doesn't need to send full length
+          // the transmission of telemetry take extra 7ms
+          startFrame += 7000;
+        }
+
+        if (rssi_table[curChannel] == 0x7F && lq_table[curChannel] == 0x7F) {
+          ++stats.packetLost;
+          if (isRadioLost())
+            state = RADIO_LOST;
+        } else {
+          stats.packetLost = 0;
+        }
 
         curChannel = ++curChannel % HOP_CH;
         *delay = startFrame + delayTime;
@@ -199,7 +208,17 @@ class TwoWaySyncProtocol {
       return false;
     }
 
+    int8_t averageRssi() {
+      int16_t val = 0;
+      for (u8 i = 0; i < HOP_CH; ++i) {
+        val += rssi_table[i];
+      }
+
+      return (int8_t)(val / HOP_CH / 2) - 70; // 70 is rssi offset
+    }
+
     bool isRadioLost() {
+      // 14 * 100 = 1400: radio lost timeout
       return stats.packetLost > 100;
     }
 

@@ -50,7 +50,7 @@ class Notifier {
         case 1: // no telemetry received
           led.blink(60, 60);
           if (!priority)
-            buzzer.blink(70, 70);
+            buzzer.blink(100, 70);
           break;
         case 2: // Package lost
           led.blink(500, 200);
