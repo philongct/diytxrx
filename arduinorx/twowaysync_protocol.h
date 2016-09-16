@@ -175,10 +175,11 @@ class TwoWaySyncProtocol {
           Serial.println(hop_channels[curChannel], HEX);
         }
 
+        stats.rssi = averageRssi();
+
         // Response telemetry every 2nd & 9th cycle of channel hoping freq
         // This is to save power & improve performance
         if (curChannel == 2 || curChannel == 9) {
-          stats.rssi = averageRssi();
           transmit((uint8_t*)&stats, 8, false); // telemetry packet doesn't need to send full length
           // the transmission of telemetry take extra 7ms
           startFrame += 7000;
@@ -361,8 +362,8 @@ class TwoWaySyncProtocol {
     }
 
     bool crcCheck(u8* raw_pkt) {
-      // lazy packet integrity check
-      return (u8)(~raw_pkt[3]) == raw_pkt[FIXED_PKT_LEN - 1];
+      u16 crc = crc16(raw_pkt, FIXED_PKT_LEN - 2); // exclude two last byte which contains CRC check;
+      return raw_pkt[FIXED_PKT_LEN - 2] == crc >> 8 && raw_pkt[FIXED_PKT_LEN - 1] == (u8)crc;
     }
 
     void resetSettings(uint8_t bind) {

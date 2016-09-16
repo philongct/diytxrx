@@ -236,7 +236,11 @@ class TwoWaySyncProtocol: public Protocol {
       
       buff[0] = FIXED_PKT_LEN;
       buff[1] = fixed_id; // auto append address
-      buff[FIXED_PKT_LEN - 1] = ~buff[3]; // lazy packet integrity check. TODO: put crc here
+
+      u16 crc = crc16(buff, FIXED_PKT_LEN - 2); // exclude two last byte which contains CRC check;
+      
+      buff[FIXED_PKT_LEN - 2] = crc >> 8;
+      buff[FIXED_PKT_LEN - 1] = crc;
 
       CC2500_WriteData(buff, FIXED_PKT_LEN);  // write 25 bytes data took ~5ms
       _delay_us(5000);  // wait for transmission complete

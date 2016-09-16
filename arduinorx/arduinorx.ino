@@ -59,6 +59,8 @@ void loop() {
     rx.buildSbusPacket(sbusPacket);
   }
 
+  u16 arr[] = {rx.stats.lqi, rx.stats.rssi};
+  extendSbusPacket(&sbusPacket[1], 15, 1, 11*13, arr); // extends to 2 channels including lqi & rssi
   sbusLostSignal(sbusPacket);
   sbusWrite(sbusPacket);
 
@@ -66,6 +68,36 @@ void loop() {
   // increase cycleCount
   if (rx.stats.cycleCount++ % 100 == 0) {
     printlog(0, "--> lqi %d", rx.stats.lqi);
+  }
+}
+
+// byteNo = 0 to n
+// bitNo = 0 to 7 (right to left)
+void extendSbusPacket(uint8_t* sbus_data_pkt, u8 byteNo, u8 bitNo, u8 maxBit, u16* extendedData) {
+  // reset counters
+  uint8_t ch = 0;
+  uint8_t bit_in_channel = 0;
+  uint8_t byte_in_sbus = byteNo;
+  uint8_t bit_in_sbus = bitNo;
+
+  // store servo data
+  for (u8 i = 8 * byteNo + bitNo; i < maxBit; i++) {
+    if (extendedData[ch] & (1 << bit_in_channel)) {
+      sbus_data_pkt[byte_in_sbus] |= (1 << bit_in_sbus);
+    }
+    
+    bit_in_sbus++;
+    bit_in_channel++;
+
+    if (bit_in_sbus == 8) {
+      bit_in_sbus = 0;
+      byte_in_sbus++;
+      sbus_data_pkt[byte_in_sbus] = 0;
+    }
+    if (bit_in_channel == 11) {
+      bit_in_channel = 0;
+      ch++;
+    }
   }
 }
 
