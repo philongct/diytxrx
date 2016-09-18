@@ -59,7 +59,7 @@ void loop() {
     rx.buildSbusPacket(sbusPacket);
   }
 
-  u16 arr[] = {(u16)rx.stats.lqi, (u16)rx.stats.rssi};
+  u16 arr[] = {(u16)rx.stats.lqi, (u16)abs(rx.stats.rssi)};
   extendSbusPacket(&sbusPacket[1], 15, 1, 11*13, arr); // extends to 2 channels including lqi & rssi
   sbusLostSignal(sbusPacket);
   sbusWrite(sbusPacket);
