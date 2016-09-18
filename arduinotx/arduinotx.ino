@@ -112,7 +112,7 @@ void statusCheck() {
 #ifndef DISABLE_RF
   if (micros() - cur_protocol.receiverStatus.teleLastReceived > 2000000) {
     notifier.warnRf(1);
-  } else if (cur_protocol.receiverStatus.packetLost > 5) {
+  } else if (cur_protocol.receiverStatus.packetLost > 3) {
     notifier.warnRf(2);
   } else if (cur_protocol.badSignal()) {
     notifier.warnRf(0);

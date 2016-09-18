@@ -78,7 +78,7 @@ typedef struct ReceiverStatusPkt {
   // end params transmitted from receiver
   uint16_t cycleCount = 0;
   uint16_t error_pkts = 0;        // count number of error packets
-  u32 teleLastReceived;               // last timestamp telemetry packet was received at tx
+  u32 teleLastReceived;           // last timestamp telemetry packet was received at tx
   uint8_t padding[FIXED_PKT_LEN - 16]; // remaining bytes to fit FIXED_PKT_LEN
 } ReceiverStatusPkt;
 
@@ -193,10 +193,12 @@ class TwoWaySyncProtocol: public Protocol {
         if (receive(packet_buff, 6000, 8) && packet_buff[1] == fixed_id && packet_buff[2] == TELE_PKT) {
           memcpy(&receiverStatus, packet_buff, sizeof(ReceiverStatusPkt));
           receiverStatus.teleLastReceived = startFrame;
+
 //          receiverStatus.lqi = 2;
 //          Serial.println(micros() - startFrame);
 //          Serial.println(receiverStatus.battery);
-          Serial.println(receiverStatus.lqi);
+          Serial.println(receiverStatus.packetLost);
+          Serial.println(receiverStatus.lqi & 0x7F);
           Serial.println(receiverStatus.rssi);
         }
 
@@ -219,7 +221,8 @@ class TwoWaySyncProtocol: public Protocol {
     }
 
     boolean badSignal() {
-      return receiverStatus.lqi > 105 || (receiverStatus.lqi < 3 && receiverStatus.rssi > -30);
+      // <=127 mean transmitter & receiver is too near. See datasheet
+      return receiverStatus.rssi > 127 && receiverStatus.rssi > -43;
     }
 
   private:

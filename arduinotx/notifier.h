@@ -61,7 +61,7 @@ class Notifier {
     }
 
     void showOK() {
-      led.blink(2000, 50);
+      led.blink(3000, 50);
       if (!priority)
         buzzOff();
     }
