@@ -65,9 +65,10 @@ typedef struct ReceiverStatusPkt {
   uint16_t battery = 800; // min battery
   // end transmit params
   uint16_t cycleCount = 0;
-  uint16_t error_pkts = 0;        // count number of error packets
-  u32 lastReceived;               // last timestamp packet was received
-  uint8_t padding[FIXED_PKT_LEN - 16]; // remaining bytes to fit FIXED_PKT_LEN
+  uint16_t error_pkts = 0;      // count number of error packets
+  u32 lastReceived;             // last timestamp packet was received
+  uint8_t receiveAttempts;      // number of attempts before received packet
+  uint8_t padding[FIXED_PKT_LEN - 17]; // remaining bytes to fit FIXED_PKT_LEN
 } ReceiverStatusPkt;
 
 enum {
@@ -161,8 +162,9 @@ class TwoWaySyncProtocol {
         
         rssi_table[curChannel] = 0x7F; // assumed not received (127/2 - RSSI_OFFSET ~ -7dbm. This is low enough to consider not received)
         lq_table[curChannel] = 0x7F;   // very high mean not received
-        
-        if (receive(hop_channels[curChannel], 7000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
+
+        // Receive timeout 4000us is enough. With current delay time, packet usually received after 1.5ms
+        if (receive(hop_channels[curChannel], 4000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           startFrame = stats.lastReceived;  // update timeframe using packet receiving time,
                                             // receiving process take about 6ms if success.
           delayTime = 6500;     // Delay total ~13ms if packet successfully received
@@ -172,9 +174,10 @@ class TwoWaySyncProtocol {
           lq_table[curChannel] = stats.lqi;
           rssi_table[curChannel] = stats.rssi;
           
-          Serial.println(hop_channels[curChannel], HEX);
+          Serial.print(hop_channels[curChannel], HEX); Serial.print(" ");
         }
 
+        Serial.println(stats.receiveAttempts);
         stats.rssi = averageRssi();
 
         // Response telemetry every 2nd & 9th cycle of channel hoping freq
@@ -333,6 +336,7 @@ class TwoWaySyncProtocol {
       uint8_t len;
       uint32_t time_start = micros();
       uint32_t time_exec = 0;
+      stats.receiveAttempts = 0;
       do {
         _delay_us(500);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
@@ -352,6 +356,8 @@ class TwoWaySyncProtocol {
             ++stats.error_pkts;
             return 0;
           }
+        } else {
+          ++stats.receiveAttempts;
         }
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
