@@ -153,10 +153,12 @@ class TwoWaySyncProtocol {
             state = RADIO_LOST;
             return false;
           }
+          stats.packetLost = 0;
           curChannel = ++curChannel % HOP_CH;
-          *delay = stats.lastReceived + 6500;
+          *delay = stats.lastReceived + 8870;
           state = TRANSMISSION;
           Serial.println("start transmission");
+          return true;
       } else if (state == TRANSMISSION) {
         u32 startFrame = micros();  // start timeframe
         u32 delayTime = 14500;  // delay 14ms (transmitter interval) when packet not received. Actual value measured is about 14504us
@@ -165,15 +167,15 @@ class TwoWaySyncProtocol {
         rssi_table[curChannel] = 0x7F; // assumed not received (127/2 - RSSI_OFFSET ~ -7dbm. This is low enough to consider not received)
         lq_table[curChannel] = 0x7F;   // very high mean not received
 
-        // With current delay time, packet usually received after 2ms
-        // If timeout is too large, it may receive packet from other transmitter and shift startFrame forward
-        if (receive(hop_channels[curChannel], 2500) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
+        // With current delay time, packet usually received after 2.5ms
+        // It's not neccessary to set a long timeout
+        if (receive(hop_channels[curChannel], 4600) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           startFrame = stats.lastReceived;  // update timeframe using packet receiving time,
-                                            // receiving process take about 6ms if success.
-          delayTime = 6500;     // Delay total ~13ms if packet successfully received.
-                                // If value is too small, it may receive packet from other transmitter.
-                                // Actual value measured is ~14472 - 14576 us
-                                // because receive() may try several times before packet arrived
+                                            // receiving process take about 5.5 - 6.5ms if success.
+          
+          // Delay total ~14ms if packet successfully received.
+          // If value is too small, it may receive packet from other transmitter.
+          delayTime = 8870;
           
           lq_table[curChannel] = stats.lqi;
           rssi_table[curChannel] = stats.rssi;
@@ -342,13 +344,14 @@ class TwoWaySyncProtocol {
       uint32_t time_exec = 0;
       stats.receiveAttempts = 0;
       do {
+        ++stats.receiveAttempts;
         _delay_us(500);
         len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST);
         // Read FIFO continuously until we found expected packet (RXOFF_MODE = 11)
         if (len && len <= FIXED_PKT_LEN) {
+          stats.lastReceived = micros();
           CC2500_ReadData(packet_buff, MAX_PKT);  // read 25 bytes data took ~5ms
 
-          stats.lastReceived = micros();
           stats.lqi = packet_buff[packet_buff[0] + 1];
           stats.rssi = packet_buff[packet_buff[0]];
 
@@ -360,8 +363,6 @@ class TwoWaySyncProtocol {
             ++stats.error_pkts;
             return 0;
           }
-        } else {
-          ++stats.receiveAttempts;
         }
         time_exec = micros() - time_start;
       } while (time_exec < timeout);
