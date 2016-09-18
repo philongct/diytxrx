@@ -73,8 +73,9 @@ typedef struct ReceiverStatusPkt {
 
 enum {
   PAIRING = 1,
-  TRANSMISSION = 2,
-  RADIO_LOST = 3
+  TRANSMISSION_READY = 2,
+  TRANSMISSION = 3,
+  RADIO_LOST = 4
 };
 
 #define ACCEPTABLE_LQI    126
@@ -144,17 +145,18 @@ class TwoWaySyncProtocol {
       *delay = 0; // default
 
       if (state == PAIRING) {
-        if (pair()) {
-          // wait for first packet to end pairing stage
+        pair();
+      } else if (state == TRANSMISSION_READY) {   // transition from other states to TRANSMISSION
+          // wait for first packet to end this stage
           while (!receive(hop_channels[curChannel], 1000000));
           if (packet_buff[2] != DATA_PKT || packet_buff[1] != fixed_id) {
             state = RADIO_LOST;
             return false;
           }
           curChannel = ++curChannel % HOP_CH;
-          *delay = micros() + 6000;
+          *delay = stats.lastReceived + 6500;
+          state = TRANSMISSION;
           Serial.println("start transmission");
-        }
       } else if (state == TRANSMISSION) {
         u32 startFrame = micros();  // start timeframe
         u32 delayTime = 14500;  // delay 14ms (transmitter interval) when packet not received. Actual value measured is about 14504us
@@ -163,11 +165,13 @@ class TwoWaySyncProtocol {
         rssi_table[curChannel] = 0x7F; // assumed not received (127/2 - RSSI_OFFSET ~ -7dbm. This is low enough to consider not received)
         lq_table[curChannel] = 0x7F;   // very high mean not received
 
-        // Receive timeout 4000us is enough. With current delay time, packet usually received after 1.5ms
-        if (receive(hop_channels[curChannel], 4000) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
+        // With current delay time, packet usually received after 2ms
+        // If timeout is too large, it may receive packet from other transmitter and shift startFrame forward
+        if (receive(hop_channels[curChannel], 2500) && packet_buff[2] == DATA_PKT && packet_buff[1] == fixed_id) {
           startFrame = stats.lastReceived;  // update timeframe using packet receiving time,
                                             // receiving process take about 6ms if success.
-          delayTime = 6500;     // Delay total ~13ms if packet successfully received
+          delayTime = 6500;     // Delay total ~13ms if packet successfully received.
+                                // If value is too small, it may receive packet from other transmitter.
                                 // Actual value measured is ~14472 - 14576 us
                                 // because receive() may try several times before packet arrived
           
@@ -247,7 +251,7 @@ class TwoWaySyncProtocol {
           transmit((uint8_t*)&res);
 
           curChannel = 0;   // pairing success
-          state = TRANSMISSION;
+          state = TRANSMISSION_READY;
         }
       }
     }
@@ -290,7 +294,7 @@ class TwoWaySyncProtocol {
         transmit((uint8_t*)&fin);
       }
       curChannel = 0;   // pairing success
-      state = TRANSMISSION;
+      state = TRANSMISSION_READY;
 
       // get ready for transmission state
       resetSettings(0);
