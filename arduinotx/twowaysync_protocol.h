@@ -198,7 +198,7 @@ class TwoWaySyncProtocol: public Protocol {
 //          Serial.println(micros() - startFrame);
 //          Serial.println(receiverStatus.battery);
           Serial.println(receiverStatus.packetLost);
-          Serial.println(receiverStatus.lqi & 0x7F);
+          printlog(1, "%d %d", receiverStatus.lqi >> 7, receiverStatus.lqi & CC2500_LQI_EST_BM);
           Serial.println(receiverStatus.rssi);
         }
 
@@ -222,7 +222,7 @@ class TwoWaySyncProtocol: public Protocol {
 
     boolean badSignal() {
       // <=127 mean transmitter & receiver is too near. See datasheet
-      return receiverStatus.rssi > 127 && receiverStatus.rssi > -43;
+      return (u8)(receiverStatus.lqi & CC2500_LQI_EST_BM) > 93 && receiverStatus.rssi < -88;
     }
 
   private:
