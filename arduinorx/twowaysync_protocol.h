@@ -25,6 +25,9 @@
 #define DATA_PKT          11
 #define TELE_PKT          12
 
+#define RSSI_OFFSET       71
+#define ACCEPTABLE_LQI    126
+
 typedef struct HelloPkt {
   uint8_t len = sizeof(HelloPkt);
   uint8_t addr;
@@ -78,8 +81,6 @@ enum {
   RADIO_LOST = 4
 };
 
-#define ACCEPTABLE_LQI    126
-
 const PROGMEM uint8_t hop_data[] = {
   0x05, 0xD5, 0xBC, 0xA3, 0x8A,
   0x71, 0x58, 0x3F, 0x26, 0x0D,
@@ -111,7 +112,9 @@ class TwoWaySyncProtocol {
       Serial.println("listen...");
       do {
 
-        uint8_t arr[] = {CC2500_10_MDMCFG4, CC2500_11_MDMCFG3, CC2500_12_MDMCFG2, CC2500_13_MDMCFG1, CC2500_14_MDMCFG0, CC2500_15_DEVIATN, CC2500_06_PKTLEN, CC2500_08_PKTCTRL0};
+        uint8_t arr[] = { //CC2500_30_PARTNUM, CC2500_31_VERSION,
+          CC2500_10_MDMCFG4, CC2500_11_MDMCFG3, CC2500_12_MDMCFG2, CC2500_13_MDMCFG1, CC2500_14_MDMCFG0,
+          CC2500_15_DEVIATN, CC2500_06_PKTLEN, CC2500_08_PKTCTRL0};
         for (int i = sizeof(arr) - 1; i >= 0; --i) {
           printlog(0, "0x%X: 0x%X", arr[i], CC2500_ReadReg(arr[i]));
         }
@@ -161,10 +164,10 @@ class TwoWaySyncProtocol {
           return true;
       } else if (state == TRANSMISSION) {
         u32 startFrame = micros();  // start timeframe
-        u32 delayTime = 14500;  // delay 14ms (transmitter interval) when packet not received. Actual value measured is about 14504us
+        u32 delayTime = 14500;  // delay 14.5ms (transmitter interval) when packet not received. Actual value measured is about 14504us
         Serial.println(startFrame);
         
-        rssi_table[curChannel] = 0x7F; // assumed not received (127/2 - RSSI_OFFSET ~ -7dbm. This is low enough to consider not received)
+        rssi_table[curChannel] = 0x81; // assumed not received (-127/2 - RSSI_OFFSET ~ -135dbm. This is low enough to consider not received)
         lq_table[curChannel] = 0x7F;   // very high mean not received
 
         // With current delay time, packet usually received after 2.5ms
@@ -194,7 +197,7 @@ class TwoWaySyncProtocol {
           startFrame += 7000;
         }
 
-        if (rssi_table[curChannel] == 0x7F && lq_table[curChannel] == 0x7F) {
+        if (rssi_table[curChannel] == (int8_t)0x81 && lq_table[curChannel] == 0x7F) {
           ++stats.packetLost;
           if (isRadioLost())
             state = RADIO_LOST;
@@ -221,10 +224,10 @@ class TwoWaySyncProtocol {
     int8_t averageRssi() {
       int16_t val = 0;
       for (u8 i = 0; i < HOP_CH; ++i) {
-        val += rssi_table[i];
+        val += (int16_t)rssi_table[i];
       }
 
-      return (int8_t)(val / HOP_CH / 2) - 70; // 70 is rssi offset
+      return (int8_t)(val / HOP_CH / 2) - RSSI_OFFSET; // 70 is rssi offset
     }
 
     bool isRadioLost() {
