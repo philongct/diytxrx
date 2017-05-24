@@ -1,5 +1,7 @@
 import os
 import atexit
+import thread
+import time
 
 from ctypes import *
 from joystick import *
@@ -88,6 +90,14 @@ class VJoyFeeder:
 def mapVal(input, min, max):
 	return (input - min)/(max - min);
 	
+def feedData(feeder, controller):
+	while True:
+		feeder.set_axis(HID_USAGE_X, mapVal(controller.get_x(), controller.min_value, controller.max_value))
+		feeder.set_axis(HID_USAGE_Y, mapVal(controller.get_y(), controller.min_value, controller.max_value))
+		feeder.set_axis(HID_USAGE_RX, mapVal(controller.get_rx(), controller.min_value, controller.max_value))
+		feeder.set_axis(HID_USAGE_RY, mapVal(controller.get_ry(), controller.min_value, controller.max_value))
+		time.sleep(0.01)	# 10ms
+	
 def run():
 	feeder = VJoyFeeder()
 	
@@ -96,17 +106,17 @@ def run():
 	else:
 		os.exit(1)
 		
-	com = raw_input('Enter COM port: ').strip();
+	com = raw_input('Enter COM port: [COM6] ').strip();
 	if len(com) == 0: com = "COM6"
 
 	input = HubsanScanner(com)
-
+	input.scan()
+	
+	thread.start_new_thread(feedData, (feeder, input))
+	
 	print "Input scan begin. Press ctrl+c to exit"
 	while input.scan() != 3:
-		feeder.set_axis(HID_USAGE_X, mapVal(input.get_x(), input.min_value, input.max_value))
-		feeder.set_axis(HID_USAGE_Y, mapVal(input.get_y(), input.min_value, input.max_value))
-		feeder.set_axis(HID_USAGE_RX, mapVal(input.get_rx(), input.min_value, input.max_value))
-		feeder.set_axis(HID_USAGE_RY, mapVal(input.get_ry(), input.min_value, input.max_value))
+		pass
 		
 		
 if __name__ == "__main__":
